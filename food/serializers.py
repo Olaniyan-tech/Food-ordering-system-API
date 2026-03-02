@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from food.models import Food, Order, OrderItem
+import re
+from users.validators import validate_phone_format
 
 class FoodSerializer(serializers.ModelSerializer):
     category = serializers.StringRelatedField()
@@ -54,12 +56,14 @@ class OrderDeliveryDetailSerializer(serializers.ModelSerializer):
         return value
     
     def validate_phone(self, value):
-        if value and not value.isdigit():
-            raise serializers.ValidationError("Phone number must contain digits only.")     
+        validate_phone_format(value)
         return value
     
     def update(self, instance, validated_data):
         instance.address = validated_data.get("address", instance.address)
+
+        if not instance.address:
+            raise serializers.ValidationError("Address is required")
 
         phone = validated_data.get("phone")
         if not phone:
