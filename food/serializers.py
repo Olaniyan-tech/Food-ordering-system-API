@@ -22,10 +22,14 @@ class FoodSerializer(serializers.ModelSerializer):
 
 class OrderItemSerializer(serializers.ModelSerializer):
     food = FoodSerializer(read_only=True)
+    subtotal = serializers.SerializerMethodField()
 
     class Meta:
         model = OrderItem
         fields = ("id", "food", "quantity", "price_at_purchase", "subtotal")
+    
+    def get_subtotal(self, obj):
+        return obj.subtotal
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)

@@ -23,11 +23,12 @@ class Category(models.Model):
 class Food(models.Model):
     category = models.ForeignKey(Category, related_name="food", null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=70, db_index=True)
-    slug = models.CharField(max_length=70, db_index=True, blank=True)
+    slug = models.SlugField(max_length=70, db_index=True, blank=True)
     descriptions = models.TextField(blank=True)
-    price = models.FloatField()
+    price = models.DecimalField(max_digits=10, decimal_places=2)
     image_url = models.ImageField(upload_to="images/", null=True, blank=True)
     available = models.BooleanField(default=True)
+    stock = models.PositiveIntegerField(default=0)
     created = models.DateTimeField(default=timezone.now)
     updated = models.DateTimeField(auto_now=True)
 
@@ -46,18 +47,22 @@ class Food(models.Model):
 
 class Order(models.Model):
     STATUS = [
-        ("pending", "Pending"),
-        ("out for delivery", "Out for delivery"),
-        ("delivered", "Delivered"),
-        ("cancelled", "Cancelled")
+        ("PENDING", "Pending"),
+        ("CONFIRMED", "Confirmed"),
+        ("PREPARING", "Preparing"),
+        ("READY", "Ready for Pickup"),
+        ("OUT FOR DELIVERY", "Out for delivery"),
+        ("DELIVERED", "Delivered"),
+        ("CANCELLED", "Cancelled"),
+        #("REFUNDED", "Refunded")
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
     
     address = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=15, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS, default="pending")
-    total = models.FloatField(default=0.0)
+    status = models.CharField(max_length=20, choices=STATUS, default="PENDING")
+    total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     date_created = models.DateTimeField(default=timezone.now)
     updated = models.DateTimeField(auto_now=True)
 
@@ -70,34 +75,6 @@ class Order(models.Model):
             )
         ]
     
-    def add_item(self, food, quantity=1):
-        item, created = OrderItem.objects.get_or_create(
-            order=self, 
-            food=food,
-            defaults={"quantity": quantity, 'price_at_purchase': food.price})
-        
-        if not created:
-            item.quantity += quantity
-            item.save()
-        self.update_total()
-    
-    def remove_item(self, item_id, action):
-        item = self.items.get(id=item_id)
-        if action == "decrease":
-            item.quantity -= 1
-            if item.quantity <= 0:
-                item.delete()
-            else:
-                item.save()
-        elif action == "delete":
-            item.delete()
-        else:
-            raise ValueError("Invalid action")
-        self.update_total()
-
-    def update_total(self):
-        self.total = sum(item.subtotal for item in self.items.all())
-        self.save(update_fields=["total"])
     
     def save(self, *args, **kwargs):
         if not self.phone and hasattr(self.user, "profile"):
@@ -105,19 +82,29 @@ class Order(models.Model):
         super().save(*args, **kwargs)
 
 
+class OrderStatusHistory(models.Model):
+    order = models.ForeignKey(Order, related_name="status_history", on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=Order.STATUS)
+    changed_by = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+
+
+
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="items")
     food = models.ForeignKey(Food, on_delete=models.CASCADE, related_name="food_items")
     quantity = models.PositiveIntegerField(default=1)
     price_at_purchase = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    subtotal = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
 
-    def __str__(self):
-        return f"{self.quantity} * {self.food.name}"
+    @property
+    def subtotal(self):
+        return self.quantity * self.price_at_purchase
     
     def save(self, *args, **kwargs):
         if self.price_at_purchase is None:
             self.price_at_purchase = self.food.price
-        self.subtotal = float(self.quantity) * float(self.price_at_purchase)
         super().save(*args, **kwargs)
 

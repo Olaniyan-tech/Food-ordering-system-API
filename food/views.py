@@ -4,6 +4,9 @@ from rest_framework import generics
 from rest_framework import status
 from food.models import Food, Order, OrderItem
 from .serializers import FoodSerializer, OrderSerializer, AddToCartSerializer, OrderDeliveryDetailSerializer
+from food.services.cart_service import add_item_to_cart, remove_item_from_cart
+from food.services.order_service import cancel_order, finalize_order
+from django.core.exceptions import ValidationError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -22,7 +25,6 @@ class AllOrdersView(generics.ListAPIView):
         return Order.objects.filter(user=self.request.user)
 
 
-# --- Add / Increase item ---
 class AddToCartView(APIView):
     def post(self, request):
         serializer = AddToCartSerializer(data=request.data)
@@ -37,32 +39,28 @@ class AddToCartView(APIView):
         except Food.DoesNotExist:
             return Response({"error": "Food not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        order, _ = Order.objects.get_or_create(user=request.user, status="pending")
+        order = add_item_to_cart(request.user, food, quantity)
 
-
-        order.add_item(food, quantity)
+        order = Order.objects.prefetch_related("items__food").get(id=order.id)
+        
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
-# --- Decrease quantity or remove item ---
+
 class RemoveFromCartView(APIView):
     def post(self, request):
         user = request.user
         item_id = request.data.get("item_id")
         action = request.data.get("action")  # 'decrease' or 'delete'
 
-        try:
-            order = Order.objects.get(user=user, status="pending")
-        except Order.DoesNotExist:
-            return Response({"error": "Cart is empty"}, status=status.HTTP_404_NOT_FOUND)
+        if not action:
+            return Response({"error": "Action is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            item = order.remove_item(item_id=item_id, action=action)
-        except OrderItem.DoesNotExist:
-            return Response({"error": "Item not found in cart"}, status=status.HTTP_404_NOT_FOUND)
-        except ValueError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
+            order = remove_item_from_cart(user=user, item_id=item_id, action=action)
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
 
+        order = Order.objects.prefetch_related("items__food").get(id=order.id)
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -72,18 +70,21 @@ class CancelCartView(APIView):
         user = request.user
 
         try:
-            order = Order.objects.get(user=user, status="pending")
+            order = Order.objects.get(user=user, status="PENDING")
         except Order.DoesNotExist:
             return Response({"error": "No pending order to cancel"}, status=status.HTTP_404_NOT_FOUND)
 
-        order.status = "cancelled"
-        order.save(update_fields=["status"])
+        try:
+            cancel_order(order, user=user)
+        except ValidationError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
         return Response({"message" : "Cart cancelled successfully"}, status=status.HTTP_200_OK)
 
 class UpdateOrderDetailView(APIView):
     def patch(self, request):
         try:
-            order = Order.objects.get(user=request.user, status="pending")
+            order = Order.objects.get(user=request.user, status="PENDING")
         except Order.DoesNotExist:
             return Response({"error" : "No pending order"}, status=status.HTTP_404_NOT_FOUND)
 
@@ -94,12 +95,12 @@ class UpdateOrderDetailView(APIView):
 
         return Response({"message" : "Order details updated"}, status=status.HTTP_200_OK)
 
-# --- Checkout ---
+
 class CheckOutView(APIView):
     def post(self, request):
         user = request.user
         try:
-            order = Order.objects.get(user=user, status="pending")
+            order = Order.objects.get(user=user, status="PENDING")
 
         except Order.DoesNotExist:
             return Response({"error": "No pending order to checkout"}, status=status.HTTP_404_NOT_FOUND)
@@ -117,8 +118,8 @@ class CheckOutView(APIView):
         
         serializer.save()
 
-        order.status = "out for delivery"
-        order.save(update_fields=["status"])
+        order = finalize_order(order, address=order.address, phone=order.phone, user=user)
+
         logger.info(f"User {user.username} checkedout for order {order.id} successfully.")
         
         return Response(
