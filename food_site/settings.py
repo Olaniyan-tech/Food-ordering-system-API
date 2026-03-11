@@ -128,7 +128,7 @@ WSGI_APPLICATION = 'food_site.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL')
+        default=config('DATABASE_URL'),ssl_require=True
     )
 }
 
