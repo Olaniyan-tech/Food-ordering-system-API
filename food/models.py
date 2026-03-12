@@ -70,7 +70,7 @@ class Order(models.Model):
         constraints = [
             UniqueConstraint(
                 fields=["user"],
-                condition=Q(status="pending"),
+                condition=Q(status="PENDING"),
                 name="unique_pending_order_per_user"
             )
         ]
