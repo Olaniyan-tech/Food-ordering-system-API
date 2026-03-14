@@ -71,7 +71,9 @@ class OrderDeliveryDetailSerializer(serializers.ModelSerializer):
 
         phone = validated_data.get("phone")
         if not phone:
-            if hasattr(instance.user, "profile") and instance.user.profile.phone:
+            if instance.phone:
+                phone = instance.phone
+            elif hasattr(instance.user, "profile") and instance.user.profile.phone:
                 phone = instance.user.profile.phone
             else:
                 raise serializers.ValidationError("Phone number is required.")

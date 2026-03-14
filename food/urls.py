@@ -7,7 +7,9 @@ from .views import(
     CancelCartView,
     UpdateOrderDetailView, 
     CheckOutView, 
-    AllOrdersView
+    AllOrdersView, 
+    OrderStatusUpdateView,
+    OrderDetailView
 )
 
 app_name = "food"
@@ -18,5 +20,8 @@ urlpatterns = [
     path("remove/", RemoveFromCartView.as_view()),
     path("cancel/", CancelCartView.as_view()),
     path("order/details/", UpdateOrderDetailView.as_view()),
-    path("checkout/", CheckOutView.as_view())
+    path("checkout/", CheckOutView.as_view()),
+    path("order/<int:order_id>/", OrderDetailView.as_view()),
+    path("order/<int:order_id>/status/", OrderStatusUpdateView.as_view()),
+
 ]

@@ -43,19 +43,19 @@ def update_order_status(order, new_status, changed_by=None):
 
 
 @transaction.atomic
-def finalize_order(order, address=None, phone=None, user=None):
+def finalize_order(order, user=None):
     if order.status != "PENDING":
         raise ValidationError("Only pending order can be finalized")
     
     if not order.items.exists():
         raise ValidationError("Cannot checkout an empty cart")
     
-    if address:
-        order.address = address    
-    if phone:
-        order.phone = phone
-
-    order.save(update_fields=["address", "phone", "updated"])
+    for item in order.items.select_related("food"):
+        if item.food.stock < item.quantity:
+            raise ValidationError(f"{item.food.name} is out of stock")
+        item.food.stock -= item.quantity
+        item.food.save(update_fields=["stock", "updated"])
+        
 
     return update_order_status(order, "CONFIRMED", changed_by=user)
 

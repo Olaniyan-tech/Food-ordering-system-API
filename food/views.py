@@ -2,11 +2,20 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import status
-from food.models import Food, Order, OrderItem
+from food.models import Food, Order
 from .serializers import FoodSerializer, OrderSerializer, AddToCartSerializer, OrderDeliveryDetailSerializer
 from food.services.cart_service import add_item_to_cart, remove_item_from_cart
-from food.services.order_service import cancel_order, finalize_order
+from food.services.order_service import ( 
+    cancel_order, 
+    finalize_order,
+    mark_preparing, 
+    mark_ready, 
+    mark_out_for_delivery, 
+    mark_delivered
+)    
+from food.permissions import IsStaffOrReadOnly, IsOrderOwner, IsStaff
 from django.core.exceptions import ValidationError
+from django.shortcuts import get_object_or_404
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,13 +25,14 @@ logger = logging.getLogger(__name__)
 class AllFoodView(generics.ListAPIView):
         queryset = Food.objects.filter(available=True)
         serializer_class = FoodSerializer
+        permission_classes = [IsStaffOrReadOnly]
         
 
 class AllOrdersView(generics.ListAPIView):
     serializer_class = OrderSerializer
     
     def get_queryset(self):
-        return Order.objects.filter(user=self.request.user)
+        return Order.objects.prefetch_related("items__food").filter(user=self.request.user)
 
 
 class AddToCartView(APIView):
@@ -118,7 +128,7 @@ class CheckOutView(APIView):
         
         serializer.save()
 
-        order = finalize_order(order, address=order.address, phone=order.phone, user=user)
+        order = finalize_order(order, user=user)
 
         logger.info(f"User {user.username} checkedout for order {order.id} successfully.")
         
@@ -130,3 +140,52 @@ class CheckOutView(APIView):
             "status" : order.status,
             "total" : order.total}, 
             status=status.HTTP_200_OK)
+
+class OrderDetailView(generics.RetrieveAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsOrderOwner]
+
+    def get_object(self):
+        order_id = self.kwargs["order_id"]
+        order = get_object_or_404(Order, id=order_id)
+        self.check_object_permissions(self.request, order)       
+        return order
+
+STATUS_TRANSITION_MAP = {
+    "PREPARING": mark_preparing,
+    "READY": mark_ready,
+    "OUT FOR DELIVERY": mark_out_for_delivery,
+    "DELIVERED": mark_delivered
+}
+
+class OrderStatusUpdateView(APIView):
+    permission_classes = [IsStaff]
+
+    def patch(self, request, order_id):
+               
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        requested_status = request.data.get("status", "").strip().upper()
+        if not requested_status:
+            return Response({"error": "'status' field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        handler = STATUS_TRANSITION_MAP.get(requested_status)
+        if not handler:
+            return Response({"error": f"'{requested_status}' is not a valid transition.",
+                "valid_status": list(STATUS_TRANSITION_MAP.keys())},
+                status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            updated_order = handler(order, user=request.user)
+        except ValidationError as e:
+            return Response({"error": e.messages[0]}, status=status.HTTP_409_CONFLICT)
+        
+        return Response({"id": str(updated_order.id), "status": updated_order.status}, 
+            status=status.HTTP_200_OK)
+
+
+
+            

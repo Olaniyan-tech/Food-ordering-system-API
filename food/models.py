@@ -65,6 +65,15 @@ class Order(models.Model):
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     date_created = models.DateTimeField(default=timezone.now)
     updated = models.DateTimeField(auto_now=True)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    preparing_at = models.DateTimeField(null=True, blank=True)
+    ready_at = models.DateTimeField(null=True, blank=True)
+    out_for_delivery_at = models.DateTimeField(null=True, blank=True)
+    cancelled_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Order {self.id} - {self.user.username} - {self.status}"
 
     class Meta:
         constraints = [
@@ -91,6 +100,8 @@ class OrderStatusHistory(models.Model):
     class Meta:
         ordering = ["created_at"]
 
+    def __str__(self):
+        return f"Order {self.order.id} → {self.status}"
 
 
 class OrderItem(models.Model):
@@ -99,8 +110,13 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     price_at_purchase = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
 
+    def __str__(self):
+        return f"{self.quantity}x {self.food.name}"
+    
     @property
     def subtotal(self):
+        if self.price_at_purchase is None:
+            return 0
         return self.quantity * self.price_at_purchase
     
     def save(self, *args, **kwargs):
