@@ -132,7 +132,8 @@ DATABASES = {
     )
 }
 
-
+PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY")
+PAYSTACK_BASE_URL = config("PAYSTACK_BASE_URL")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

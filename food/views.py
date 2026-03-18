@@ -1,3 +1,8 @@
+import hmac
+import hashlib
+from django.conf import settings
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
@@ -13,6 +18,7 @@ from food.services.order_service import (
     mark_out_for_delivery, 
     mark_delivered
 )    
+from food.services.payment_service import initialize_payment, verify_payment
 from food.permissions import IsStaffOrReadOnly, IsOrderOwner, IsStaff
 from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404
@@ -187,5 +193,89 @@ class OrderStatusUpdateView(APIView):
             status=status.HTTP_200_OK)
 
 
+class InitializePaymentView(APIView):
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id, user=request.user)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            authorization_url, reference = initialize_payment(order)
+        except ValidationError as e:
+            return Response({"error": e.messages[0]}, status=status.HTTP_409_CONFLICT)
+        
+        return Response({
+            "authorization_url": authorization_url,
+            "reference": reference
+        }, status=status.HTTP_200_OK)
 
-            
+class VerifyPaymentView(APIView):
+    def get(self, request, reference):
+        try:
+            order = Order.objects.get(
+                payment_reference=reference, 
+                user=request.user
+            )
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        try:
+            payment_data = verify_payment(reference)
+        except ValidationError as e:
+            return Response({"error": e.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if payment_data["status"] == "success":
+            order.payment_status = "PAID"
+            order.save(update_fields=["payment_status", "updated"])
+
+            logger.info(f"Payment verified for order {order.id} by {request.user.username}")
+
+            return Response({
+                "message": "Payment successfull",
+                "order_id": order.id,
+                "payment_status": order.payment_status,
+                "amount_paid": payment_data["amount"] / 100
+            }, status=status.HTTP_200_OK)
+    
+        order.payment_status = "FAILED"
+        order.save(update_fields=["payment_status", "updated"])
+
+        return Response({
+            "error": "Payment failed",
+            "payment_status": order.payment_status
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+@method_decorator(csrf_exempt, name="dispatch")
+class PayStackWebhookView(APIView):
+    permission_classes = []
+
+    def post(self, request):
+        paystack_signature = request.headers.get("x-paystack-signature")
+
+        computed = hmac.new(
+            settings.PAYSTACK_SECRET_KEY.encode("utf-8"),
+            request.body,
+            hashlib.sha512).hexdigest()
+        
+        if computed != paystack_signature:
+            return Response({"error": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try: 
+            payload = request.data
+            event = payload.get("event")
+        except Exception:
+            return Response({"error": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if event == "charge.success":
+            reference = payload["data"]["reference"]
+
+            try:
+                order = Order.objects.get(payment_reference=reference)
+                order.payment_status = "PAID"
+                order.save(update_fields=["payment_status", "updated"])
+                logger.info(f"Webhook: payment confirmed for order {order.id}")
+            except Order.DoesNotExist:
+                pass
+        
+        return Response({"message": "ok"}, status=status.HTTP_200_OK)

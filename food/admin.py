@@ -13,7 +13,7 @@ class OrderItemInline(admin.StackedInline):
 
 class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
-    list_display = ['id', 'user', 'total', 'status', 'date_created', 'updated']
+    list_display = ['id', 'user', 'total', 'status', 'date_created', 'updated', 'payment_status']
 admin.site.register(Order, OrderAdmin)
 
 class OrderHistoryStatusAdmin(admin.ModelAdmin):

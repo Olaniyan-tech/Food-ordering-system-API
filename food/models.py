@@ -57,6 +57,13 @@ class Order(models.Model):
         #("REFUNDED", "Refunded")
     ]
 
+    PAYMENT_STATUS = [
+        ("UNPAID", "Unpaid"),
+        ("PENDING", "Pending"),
+        ("PAID", "Paid"),
+        ("FAILED", "Failed")
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
     
     address = models.CharField(max_length=100, blank=True)
@@ -71,6 +78,8 @@ class Order(models.Model):
     out_for_delivery_at = models.DateTimeField(null=True, blank=True)
     cancelled_at = models.DateTimeField(null=True, blank=True)
     delivered_at = models.DateTimeField(null=True, blank=True)
+    payment_reference = models.CharField(max_length=100, blank=True)
+    payment_status = models.CharField(max_length=10, choices=PAYMENT_STATUS, default="UNPAID")
 
     def __str__(self):
         return f"Order {self.id} - {self.user.username} - {self.status}"
