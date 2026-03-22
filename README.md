@@ -81,6 +81,10 @@ The project is designed to be scalable, maintainable, and ready for integration 
 | `/api/cancel/` | DELETE | Cancel all items in the pending cart |
 | `/api/order/details/` | PATCH | Update order delivery details (address & phone) |
 | `/api/checkout/` | POST | Checkout current cart, finalize order |
+| `/api/order/<int:id>/` | POST | Check the details of the current order |
+| `/api/order/<int:id>/pay/` | POST | Initialize payment for the checked out order | 
+| `/api/order/verify/<str:reference>/` | POST | Verify the payment for the order | 
+| `/api/webhook/paystack` | POST | Update the status of the payment |
 
 
 ## Example Requests
