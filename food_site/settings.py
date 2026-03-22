@@ -31,6 +31,8 @@ DEBUG = config("DEBUG", default=False, cast=bool) # True in .env enables debug m
 
 ALLOWED_HOSTS = [host.strip() for host in config("DJANGO_ALLOWED_HOSTS", default="127.0.0.1,localhost,food-ordering-system-egsl.onrender.com").split(",")]
 
+ALLOWED_HOSTS.append("melda-sessional-unrestrainedly.ngrok-free.dev")
+
 
 # Application definition
 
@@ -128,12 +130,20 @@ WSGI_APPLICATION = 'food_site.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=config('DATABASE_URL'),ssl_require=True
+        default=config('DATABASE_URL'),
+        ssl_require=True,
+        conn_max_age=600,
     )
+}
+
+DATABASES['default']['OPTIONS'] = {
+    'connect_timeout': 10,
 }
 
 PAYSTACK_SECRET_KEY = config("PAYSTACK_SECRET_KEY")
 PAYSTACK_BASE_URL = config("PAYSTACK_BASE_URL")
+
+BASE_URL = config("BASE_URL")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators

@@ -56,7 +56,6 @@ def finalize_order(order, user=None):
         item.food.stock -= item.quantity
         item.food.save(update_fields=["stock", "updated"])
         
-
     return update_order_status(order, "CONFIRMED", changed_by=user)
 
 
@@ -80,6 +79,12 @@ def mark_ready(order, user=None):
 def cancel_order(order, user=None):
     if order.status not in ["PENDING", "CONFIRMED"]:
         raise ValidationError("Order is already being prepared or delivered and cannot be cancelled.")
+    
+    if order.status == "CONFIRMED":
+        for item in order.items.select_related("food"):
+            item.food.stock += item.quantity
+            item.food.save(update_fields=["stock", "updated"])
+
     return update_order_status(order, "CANCELLED", changed_by=user)
 
 @transaction.atomic
@@ -87,12 +92,14 @@ def mark_out_for_delivery(order, user=None):
     valid_pre_states = ["CONFIRMED", "PREPARING", "READY"]
     if order.status not in valid_pre_states:
         raise ValidationError("Order must be confirmed before delivery")
+    
     return update_order_status(order, "OUT FOR DELIVERY", changed_by=user)
 
 @transaction.atomic
 def mark_delivered(order, user=None):
     if order.status != "OUT FOR DELIVERY":
         raise ValidationError("Order must be out for delivery")
+    
     return update_order_status(order, "DELIVERED", changed_by=user)
 
 

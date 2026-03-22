@@ -51,12 +51,15 @@ class AddToCartView(APIView):
         quantity = serializer.validated_data["quantity"]
 
         try:
-            food = Food.objects.get(id=food_id, available=True)
+            food = Food.objects.get(id=food_id)
         except Food.DoesNotExist:
-            return Response({"error": "Food not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Food not found"}, status=status.HTTP_404_NOT_FOUND)       
 
-        order = add_item_to_cart(request.user, food, quantity)
-
+        try:
+            order = add_item_to_cart(request.user, food, quantity)
+        except ValidationError as e:
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        
         order = Order.objects.prefetch_related("items__food").get(id=order.id)
         
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
@@ -74,28 +77,28 @@ class RemoveFromCartView(APIView):
         try:
             order = remove_item_from_cart(user=user, item_id=item_id, action=action)
         except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)      
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_400_BAD_REQUEST)      
 
         order = Order.objects.prefetch_related("items__food").get(id=order.id)
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
-class CancelCartView(APIView):
-    def delete(self, request):
+    
+class CancelOrderView(APIView):
+    def delete(self, request, order_id):
         user = request.user
 
         try:
-            order = Order.objects.get(user=user, status="PENDING")
+            order = Order.objects.get( id=order_id, user=user)
         except Order.DoesNotExist:
-            return Response({"error": "No pending order to cancel"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
 
         try:
             cancel_order(order, user=user)
         except ValidationError as e:
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"message" : "Cart cancelled successfully"}, status=status.HTTP_200_OK)
+        return Response({"message" : "Order cancelled successfully"}, status=status.HTTP_200_OK)
 
 class UpdateOrderDetailView(APIView):
     def patch(self, request):
@@ -134,7 +137,10 @@ class CheckOutView(APIView):
         
         serializer.save()
 
-        order = finalize_order(order, user=user)
+        try:
+            order = finalize_order(order, user=user)
+        except ValidationError as e:
+            return Response({"error": e.messages[0] if e.messages else str(e)})
 
         logger.info(f"User {user.username} checkedout for order {order.id} successfully.")
         
@@ -187,7 +193,7 @@ class OrderStatusUpdateView(APIView):
         try:
             updated_order = handler(order, user=request.user)
         except ValidationError as e:
-            return Response({"error": e.messages[0]}, status=status.HTTP_409_CONFLICT)
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_409_CONFLICT)
         
         return Response({"id": str(updated_order.id), "status": updated_order.status}, 
             status=status.HTTP_200_OK)
@@ -203,7 +209,7 @@ class InitializePaymentView(APIView):
         try:
             authorization_url, reference = initialize_payment(order)
         except ValidationError as e:
-            return Response({"error": e.messages[0]}, status=status.HTTP_409_CONFLICT)
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_409_CONFLICT)
         
         return Response({
             "authorization_url": authorization_url,
@@ -223,7 +229,7 @@ class VerifyPaymentView(APIView):
         try:
             payment_data = verify_payment(reference)
         except ValidationError as e:
-            return Response({"error": e.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": e.messages[0] if e.messages else str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
         if payment_data["status"] == "success":
             order.payment_status = "PAID"

@@ -4,11 +4,7 @@ from django.db.models import F, Sum
 from django.core.exceptions import ValidationError
 
 @transaction.atomic
-def add_item_to_cart(user, food, quantity=1):
-
-    if quantity <= 0:
-        raise ValidationError("Quantity must be positive")
-    
+def add_item_to_cart(user, food, quantity=1):    
     if not food.available:
         raise ValidationError("Food is not available")
     
@@ -44,12 +40,12 @@ def add_item_to_cart(user, food, quantity=1):
 def remove_item_from_cart(user, item_id, action):
     order = Order.objects.select_for_update().filter(user=user, status="PENDING").first()
     if not order:
-        raise ValueError("Cart is empty")
+        raise ValidationError("Cart is empty")
     
     try:
         item = order.items.select_for_update().get(id=item_id)
     except OrderItem.DoesNotExist:
-        raise ValueError("Item not found in Cart")
+        raise ValidationError("Item not found in Cart")
 
     if action == "decrease":
         item.quantity = F("quantity") - 1
@@ -63,7 +59,7 @@ def remove_item_from_cart(user, item_id, action):
         item.delete()
 
     else:
-        raise ValueError("Invalid action")
+        raise ValidationError("Invalid action")
     
     update_order_total(order)
     return order
