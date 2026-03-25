@@ -133,3 +133,15 @@ class OrderItem(models.Model):
             self.price_at_purchase = self.food.price
         super().save(*args, **kwargs)
 
+
+class Review(models.Model):    
+    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="review")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reviews")
+    rating = models.PositiveSmallIntegerField()
+    comment = models.TextField(blank=True)
+    photo = models.ImageField(upload_to="reviews/", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Review by {self.user.username} for Order {self.order.id}" 
