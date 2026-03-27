@@ -27,7 +27,6 @@ from food.services.order_service import (
     mark_ready, 
     mark_out_for_delivery, 
     mark_delivered,
-    update_order_status,
     update_payment_status
 )    
 from food.services.payment_service import initialize_payment, verify_payment
@@ -41,7 +40,8 @@ from food.selectors import (
     get_user_order_by_id,
     get_order_by_reference,
     get_order_review, 
-    get_food_reviews
+    get_food_reviews,
+    get_food_review_stats
 )
 from food.permissions import IsStaffOrReadOnly, IsOrderOwner, IsStaff
 from django.core.exceptions import ValidationError
@@ -419,14 +419,23 @@ class OrderReviewDetailView(APIView):
         return Response(ReviewSerializer(review).data, status=status.HTTP_200_OK)
 
         
-class FoodReviewsView(generics.ListAPIView):
-    serializer_class = ReviewSerializer
+class FoodReviewsView(APIView):
     permission_classes = []
 
     @method_decorator(ratelimit(key="ip", rate="5/m", method="GET", block=True))
-    def get(self, request, *args, **kwargs):
-            return super().get(request, *args, **kwargs)
+    def get(self, request, food_id):
+        try:
+            food = get_available_food_by_id(food_id)
+        except Food.DoesNotExist:
+            return Response({"error": "Food not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        stats = get_food_review_stats(food_id)
+        reviews = get_food_reviews(food_id)
    
-    def get_queryset(self):
-        return get_food_reviews(self.kwargs["food_id"])
+        return Response({
+            "id": food.id,
+            "average_rating": stats["average_rating"],
+            "total_reviews": stats["total_reviews"],
+            "reviews": ReviewSerializer(reviews, many=True).data
+        }, status=status.HTTP_200_OK)
         
