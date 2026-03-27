@@ -51,6 +51,17 @@ def get_food_reviews(food_id):
     ).select_related("user").order_by("-created_at")
 
 
+def get_food_review_stats(food_id):
+    stats = Review.objects.filter(
+        order__items__food__id=food_id
+    ).aggregate(
+        average_rating=Avg("rating"),
+        total_reviews=Count("id")
+    )
+    return {
+        "average_rating": round(stats["average_rating"] or 0, 1),
+        "total_reviews": stats["total_reviews"]
+    }
 
 
 
