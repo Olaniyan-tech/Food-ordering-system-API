@@ -377,7 +377,35 @@ class CreateReviewView(APIView):
             "data": ReviewSerializer(review).data
         }, status=status.HTTP_201_CREATED)
 
-        
+
+class UpdateReviewView(APIView):
+
+    @method_decorator(ratelimit(key="user", rate="10/m", method="PATCH", block=True))
+    def patch(self, request, order_id):
+        try:
+            order = get_user_order_by_id(order_id, request.user)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        review = get_order_review(order)
+        if not review:
+            return Response({"error": "No review found"}, status=status.HTTP_404_NOT_FOUND)
+
+        if review.user != request.user:
+            return Response({"error": "You can only edit your own review"}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = ReviewSerializer(review, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer.save()
+        logger.info(f"User {request.user.username} updated review for Order {order_id}")
+
+        return Response({
+            "message": "Review updated successfully",
+            "data": serializer.data
+        }, status=status.HTTP_200_OK)
+
 class OrderReviewDetailView(APIView):
     
     @method_decorator(ratelimit(key="user", rate="5/m", method="GET", block=True))
