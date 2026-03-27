@@ -81,10 +81,14 @@ The project is designed to be scalable, maintainable, and ready for integration 
 | `/api/cancel/` | DELETE | Cancel all items in the pending cart |
 | `/api/order/details/` | PATCH | Update order delivery details (address & phone) |
 | `/api/checkout/` | POST | Checkout current cart, finalize order |
-| `/api/order/<int:id>/` | POST | Check the details of the current order |
-| `/api/order/<int:id>/pay/` | POST | Initialize payment for the checked out order | 
-| `/api/order/verify/<str:reference>/` | POST | Verify the payment for the order | 
+| `/api/order/<int:order_id>/` | GET | Check the details of the current order |
+| `/api/order/<int:order_id>/pay/` | POST | Initialize payment for the checked out order | 
+| `/api/order/verify/<str:reference>/` | GET | Verify the payment for the order | 
 | `/api/webhook/paystack` | POST | Update the status of the payment |
+| `/api/order/<int:order_id>/review/` | POST | Submit reviews for completed orders |
+| `/api/order/<int:order_id>/review/update/` | PATCH | Update order reviews |
+| `/api/order/<int:order_id>/review/detail/` | GET | Get a detail of a particular review |
+| `/api/foods/<int:food_id>/reviews/` | GET | View all reviews for a food item |
 
 
 ## Example Requests
@@ -372,6 +376,7 @@ Content-Type: application/json
    "payment_status": "Failed"
 }
 ```
+
 
 
 ## Testing the API
