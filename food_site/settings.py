@@ -15,6 +15,7 @@ import os
 import dj_database_url
 from decouple import config
 from datetime import timedelta
+import ssl
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -127,8 +128,8 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "Africa/Lagos"
 
-CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": None}
-CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": None}
+CELERY_BROKER_USE_SSL = {"ssl_cert_reqs": ssl.CERT_NONE}
+CELERY_REDIS_BACKEND_USE_SSL = {"ssl_cert_reqs": ssl.CERT_NONE}
 
 
 MIDDLEWARE = [
