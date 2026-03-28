@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from food.models import Food, Order, OrderItem, Review
 from users.validators import validate_phone_format
+from drf_spectacular.utils import extend_schema_field
 
 class FoodSerializer(serializers.ModelSerializer):
     category = serializers.StringRelatedField()
@@ -10,7 +11,7 @@ class FoodSerializer(serializers.ModelSerializer):
         model = Food
         fields = ("id", "name", "price", "descriptions", "image_url", "category", "stock")
 
-
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_image_url(self, obj):
         request = self.context.get('request')
         if obj.image_url:
@@ -28,6 +29,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
         model = OrderItem
         fields = ("id", "food", "quantity", "price_at_purchase", "subtotal")
     
+    @extend_schema_field(serializers.DecimalField(max_digits=10, decimal_places=2))
     def get_subtotal(self, obj):
         return obj.subtotal
 
