@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'users.apps.UsersConfig',
     'corsheaders',
 
+    'django_filters',
     'drf_spectacular',
 ]
 
@@ -67,6 +68,15 @@ REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS' : 'drf_spectacular.openapi.AutoSchema',
 
     'EXCEPTION_HANDLER': 'food.exceptions.custom_exception_handler',
+
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 10,
+
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend',
+        'rest_framework.filters.SearchFilter',
+        'rest_framework.filters.OrderingFilter',
+    ],
 }
 
 
@@ -102,7 +112,11 @@ PASSWORD_HASHERS = [
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": config("REDIS_URL"),
+        "OPTIONS": {
+            "ssl_cert_reqs": ssl.CERT_REQUIRED
+        }
     }
 }
 
