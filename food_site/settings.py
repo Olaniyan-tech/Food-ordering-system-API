@@ -159,6 +159,10 @@ MIDDLEWARE = [
     "django_ratelimit.middleware.RatelimitMiddleware"
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    "https://food-ordering-system-egsl.onrender.com",
+    config("FRONTEND_URL", default="http://localhost:3000"),
+]
 
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
