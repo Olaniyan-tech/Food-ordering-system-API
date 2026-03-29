@@ -3,9 +3,9 @@ from django.db.models import Q, UniqueConstraint
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.utils.text import slugify
+from django.core.cache import cache
 
 
-# Create your models here.
 
 class Category(models.Model):
     name = models.CharField(max_length=70, db_index=True)
@@ -36,6 +36,7 @@ class Food(models.Model):
         if not self.slug:
             self.slug = slugify(self.name)
         super().save(*args, **kwargs)
+        cache.delete("available_foods")
 
     # class Meta:
     #     ordering = ('category', 'name',)

@@ -1,8 +1,15 @@
 from food.models import Food, Order, Review
 from django.db.models import Avg, Count
+from django.core.cache import cache
 
 def get_available_foods():
-    return Food.objects.filter(available=True)
+    foods = cache.get("available_foods")
+
+    if foods is None:
+        foods = list(Food.objects.filter(available=True))
+        cache.set("available_foods", foods, timeout=300)
+
+    return foods
 
 def get_available_food_by_id(food_id):
     return Food.objects.get(id=food_id, available=True)
@@ -46,22 +53,38 @@ def get_order_review(order):
         return None
 
 def get_food_reviews(food_id):
-    return Review.objects.filter(
-        order__items__food__id=food_id
-    ).select_related("user").order_by("-created_at")
+    cache_key = f"food_reviews_{food_id}"
+    reviews = cache.get(cache_key)
+
+    if reviews is None:
+        reviews = list(Review.objects.filter(
+            order__items__food__id=food_id
+        ).select_related("user").order_by("-created_at"))
+
+        cache.set(cache_key, reviews, timeout=300)
+    
+    return reviews
 
 
 def get_food_review_stats(food_id):
-    stats = Review.objects.filter(
-        order__items__food__id=food_id
-    ).aggregate(
-        average_rating=Avg("rating"),
-        total_reviews=Count("id")
-    )
-    return {
-        "average_rating": round(stats["average_rating"] or 0, 1),
-        "total_reviews": stats["total_reviews"]
-    }
+    cache_key = f"food_reviews_stats_{food_id}"
+    stats = cache.get(cache_key)
+
+    if stats is None:
+        result = Review.objects.filter(
+            order__items__food__id=food_id
+        ).aggregate(
+            average_rating=Avg("rating"),
+            total_reviews=Count("id")
+        )
+
+        stats = {
+            "average_rating": round(result["average_rating"] or 0, 1),
+            "total_reviews": result["total_reviews"]
+        }
+        cache.set(cache_key, stats, timeout=300)
+    
+    return stats
 
 
 
