@@ -168,6 +168,8 @@ else:
         config("FRONTEND_URL", default="http://localhost:3000")
     ]
 
+CORS_ALLOW_CREDENTIALS = True
+
 ROOT_URLCONF = 'food_site.urls'
 
 TEMPLATES = [
