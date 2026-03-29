@@ -7,7 +7,8 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-
+RUN useradd -m celeryuser
+USER celeryuser
 
 
 
