@@ -107,6 +107,7 @@ class CookieTokenRefreshView(TokenRefreshView):
                 max_age=30*60,
                 path='/'
             )
+            
             return response
         
         except TokenError as e:
