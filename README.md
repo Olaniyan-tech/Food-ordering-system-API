@@ -90,7 +90,6 @@ The project is designed to be scalable, maintainable, and ready for integration 
 | `/api/order/<int:order_id>/details/` | GET | Check the details of the current order |
 | `/api/order/<int:order_id>/pay/` | POST | Initialize payment for the checked out order | 
 | `/api/order/verify/<str:reference>/` | GET | Verify the payment for the order | 
-| `/api/webhook/paystack/` | POST | Update the status of the payment |
 | `/api/order/<int:order_id>/review/` | POST | Submit reviews for completed orders |
 | `/api/order/<int:order_id>/review/update/` | PATCH | Update order reviews |
 | `/api/order/<int:order_id>/review/detail/` | GET | Get a detail of a particular review |
