@@ -26,21 +26,27 @@ The project is designed to be scalable, maintainable, and ready for integration 
 
 - Automatic calculation of order totals
 
+- Payment integration and verification
+
+- Background task automation (Celery + Redis)
+
+- Reviews system
+
 
 ##  🔹 Installation
 
 1. Clone the repository
    ```bash
-   git clone https://github.com/Olaniyan-tech/ToDo-API.git]
-   cd ToDo-API
+   git clone https://github.com/Olaniyan-tech/Food-ordering-system-API.git
+   cd Food-ordering-system-API
 
 2. Create a virtual environment
    ```bash
-   python -m venv env
+   python -m venv venv
 
 3. Activate the virtual environment
    ```bash
-   env\Scripts\activate
+   venv\Scripts\activate
 
 5. Install dependencies
    ```bash
@@ -79,12 +85,11 @@ The project is designed to be scalable, maintainable, and ready for integration 
 | `/api/my-orders/` | GET | Lists all orders of the logged-in user |
 | `/api/remove/` | POST | Decrease or delete pending items from cart|
 | `/api/cancel/` | DELETE | Cancel all items in the pending cart |
-| `/api/order/details/` | PATCH | Update order delivery details (address & phone) |
+| `/api/order/details/update/` | PATCH | Update order delivery details (address & phone) |
 | `/api/checkout/` | POST | Checkout current cart, finalize order |
-| `/api/order/<int:order_id>/` | GET | Check the details of the current order |
+| `/api/order/<int:order_id>/details/` | GET | Check the details of the current order |
 | `/api/order/<int:order_id>/pay/` | POST | Initialize payment for the checked out order | 
 | `/api/order/verify/<str:reference>/` | GET | Verify the payment for the order | 
-| `/api/webhook/paystack` | POST | Update the status of the payment |
 | `/api/order/<int:order_id>/review/` | POST | Submit reviews for completed orders |
 | `/api/order/<int:order_id>/review/update/` | PATCH | Update order reviews |
 | `/api/order/<int:order_id>/review/detail/` | GET | Get a detail of a particular review |
@@ -409,13 +414,17 @@ http://127.0.0.1:8000/api/
 
 7. Test protected endpoints such as:
    
-   - **GET /menu/**
-   - **POST /add_to_cart/**
-   - **POST /my-orders/**
-   - **POST /remove/**
-   - **POST /cancel/**
-   - **POST /order/details/**
-   - **POST /checkout/**
+   - **GET `/api/menu/`**
+   - **POST `/api/add_to_cart/`**
+   - **GET `/api/my-orders/`**
+   - **POST `/api/remove/`**
+   - **POST `/api/cancel/`**
+   - **GET `/api/order/<int:order_id>/details/`**
+   - **PATCH `/api/order/details/update/`**
+   - **POST `/api/order/<int:order_id>/review/`**
+   - **PATCH `/api/order/<int:order_id>/review/update/`**
+   - **GET `/api/order/<int:order_id>/review/detail/`**
+   - **GET `/api/foods/<int:food_id>/reviews/`**
 
 ```md
 ### Cookie-based Authentication
@@ -427,10 +436,12 @@ Access tokens are automatically sent with each request once the user is logged i
 ## 🔹 Tech Stack
 ```md
 
-- Python
-- Django
-- Django REST Framework
-- Simple JWT
+- Python ----- Programming Language
+- Django ----- Web framework for building server-side applications
+- Django REST Framework ----- API layer
+- Simple JWT ----- JWT token authentication
+- PostgreSQL ----- Database
+- django-cors-headers ----- Support frontend integration
 
 
 ## Notes
@@ -438,5 +449,4 @@ Access tokens are automatically sent with each request once the user is logged i
 - This is a backend-only project.
 - All endpoints require authentication except register and login.
 - Frontend applications (React, Vue, Mobile apps) can consume this API.
-- Future updates will include payment integration, WebSockets, and Celery background tasks.
 ```
