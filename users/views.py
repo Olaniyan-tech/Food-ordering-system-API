@@ -50,6 +50,9 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     serializer_class = TokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
+        if request.data.get("refresh"):
+            return Response({"error": "Do not send a refresh token in body"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try: 
             response_data = super().post(request, *args, **kwargs).data
 
