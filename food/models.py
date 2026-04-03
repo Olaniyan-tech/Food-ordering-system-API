@@ -2,37 +2,66 @@ from django.db import models
 from django.db.models import Q, UniqueConstraint
 from django.contrib.auth.models import User
 from django.utils import timezone
-from django.utils.text import slugify
+from food.utils import save_with_unique_slug
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class Category(models.Model):
     name = models.CharField(max_length=70, db_index=True)
-    slug = models.SlugField(max_length=70, unique=True)
+    slug = models.SlugField(max_length=100, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            return save_with_unique_slug(self, self.name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
+
+class Vendor(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="vendor")
+    business_name = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True)
+    description = models.TextField(blank=True)
+    logo = models.ImageField(upload_to="vendors/", null=True, blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    address = models.CharField(max_length=300)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    country = models.CharField(max_length=100, default="Nigeria")
+    is_active = models.BooleanField(default=True)
+    is_approved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            return save_with_unique_slug(self, self.business_name)
         super().save(*args, **kwargs)
-
+    
+    def __str__(self):
+        return self.business_name
 
 class Food(models.Model):
-    category = models.ForeignKey(Category, related_name="food", null=True, on_delete=models.CASCADE)
+    vendor = models.ForeignKey(Vendor, related_name="foods", null=True, on_delete=models.CASCADE)
+    category = models.ForeignKey(Category, related_name="foods", null=True, on_delete=models.SET_NULL)
     name = models.CharField(max_length=70, db_index=True)
-    slug = models.SlugField(max_length=70, db_index=True, blank=True)
-    descriptions = models.TextField(blank=True)
+    slug = models.SlugField(max_length=100, unique=True, blank=True)
+    description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
-    image_url = models.ImageField(upload_to="images/", null=True, blank=True)
+    image = models.ImageField(upload_to="foods/", null=True, blank=True)
     available = models.BooleanField(default=True)
     stock = models.PositiveIntegerField(default=0)
-    created = models.DateTimeField(default=timezone.now)
-    updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         if not self.slug:
-            self.slug = slugify(self.name)
+            return save_with_unique_slug(self, self.name)
         super().save(*args, **kwargs)
 
     # class Meta:
@@ -63,13 +92,13 @@ class Order(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="orders")
-    
+    vendor = models.ForeignKey(Vendor, on_delete=models.SET_NULL, related_name="orders", null=True)
     address = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=15, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default="PENDING")
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    date_created = models.DateTimeField(default=timezone.now)
-    updated = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     preparing_at = models.DateTimeField(null=True, blank=True)
     ready_at = models.DateTimeField(null=True, blank=True)
@@ -85,9 +114,9 @@ class Order(models.Model):
     class Meta:
         constraints = [
             UniqueConstraint(
-                fields=["user"],
+                fields=["user", "vendor"],
                 condition=Q(status="PENDING"),
-                name="unique_pending_order_per_user"
+                name="unique_pending_order_per_user_per_vendor"
             )
         ]
     
@@ -133,13 +162,20 @@ class OrderItem(models.Model):
 
 
 class Review(models.Model):    
-    order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name="review")
+    order = models.OneToOneField(Order, on_delete=models.SET_NULL, related_name="review", null=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.SET_NULL, related_name="reviews", null=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reviews")
-    rating = models.PositiveSmallIntegerField()
+    rating = models.PositiveSmallIntegerField(
+        validators=[MinValueValidator(1, message="Rating must be at least 1"), MaxValueValidator(5, message="Rating cannot exceed 5")]
+    )
     comment = models.TextField(blank=True)
     photo = models.ImageField(upload_to="reviews/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def clean(self):
+        if self.vendor != self.order.vendor:
+            raise ValidationError("Review vendor must match order vendor")
 
     def __str__(self):
         return f"Review by {self.user.username} for Order {self.order.id}" 
