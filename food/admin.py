@@ -1,5 +1,5 @@
 from django.contrib import admin
-from food.models import Food, Order, OrderStatusHistory, OrderItem, Category, Review
+from food.models import Food, Order, OrderStatusHistory, OrderItem, Category, Review, Vendor
 
 
 admin.site.register(Food)
@@ -13,7 +13,7 @@ class OrderItemInline(admin.StackedInline):
 
 class OrderAdmin(admin.ModelAdmin):
     inlines = [OrderItemInline]
-    list_display = ['id', 'user', 'address', 'total', 'status',  'date_created', 'updated', 'payment_status']
+    list_display = ['id', 'user', 'address', 'total', 'status',  'created_at', 'updated_at', 'payment_status']
 admin.site.register(Order, OrderAdmin)
 
 class OrderHistoryStatusAdmin(admin.ModelAdmin):
@@ -33,6 +33,11 @@ class CategoryAdmin(admin.ModelAdmin):
 admin.site.register(Category, CategoryAdmin)
 
 class ReviewAdmin(admin.ModelAdmin):
-    list_display = ["id", "user", "order", "rating", "comment", "created_at"]
-    readonly_fields = ["created_at", "updated_at"]
+    list_display = ['id', 'user', 'order', 'rating', 'comment', 'created_at']
+    readonly_fields = ['created_at', 'updated_at']
 admin.site.register(Review, ReviewAdmin)
+
+class VendorAdmin(admin.ModelAdmin):
+    list_display = ['id', 'user', 'business_name', 'is_active', 'is_approved']
+    readonly_fields = ['created_at', 'updated_at']
+admin.site.register(Vendor, VendorAdmin)
