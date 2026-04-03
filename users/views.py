@@ -1,12 +1,14 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import generics
 from rest_framework import status
-from .serializers import RegisterSerializer
+from .serializers import RegisterSerializer, UserProfileSerializer
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken, AuthenticationFailed
+from users.models import Profile
 from drf_spectacular.utils import extend_schema
 import logging
 from django.conf import settings
@@ -143,11 +145,25 @@ class LogoutView(APIView):
 
         return response
 
-class UserProfileView(APIView):
+class UserProfileView(generics.GenericAPIView):
+    serializer_class = UserProfileSerializer
+
+    def get_object(self):
+        profile, created = Profile.objects.get_or_create(user=self.request.user)
+        return profile
 
     @extend_schema(responses={200: None})
     def get(self, request):
-        return Response({
-            "username": request.user.username,
-            "email": request.user.email
-        })
+        serializer = self.get_serializer(self.get_object())
+        return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    @extend_schema(responses={200: None})
+    def patch(self, request):
+        serializer = self.get_serializer(
+            self.get_object(),
+            data=request.data,
+            partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)
