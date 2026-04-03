@@ -49,7 +49,7 @@ def initialize_payment(order):
     
     order.payment_reference = reference
     order.payment_status = "PENDING"
-    order.save(update_fields=["payment_reference", "payment_status", "updated"])
+    order.save(update_fields=["payment_reference", "payment_status", "updated_at"])
 
     return data["data"]["authorization_url"], reference
 

@@ -32,7 +32,7 @@ def update_order_status(order, new_status, changed_by=None):
     else:
         logger.warning(f"No timestamp field for status {new_status}")
     
-    update_fields = ["status", "updated"]
+    update_fields = ["status", "updated_at"]
     if timestamp_field:
         update_fields.append(timestamp_field)
 
@@ -62,7 +62,7 @@ def finalize_order(order, user=None):
         if item.food.stock < item.quantity:
             raise ValidationError(f"{item.food.name} is out of stock")
         item.food.stock -= item.quantity
-        item.food.save(update_fields=["stock", "updated"])
+        item.food.save(update_fields=["stock", "updated_at"])
         
     return update_order_status(order, "CONFIRMED", changed_by=user)
 
@@ -91,7 +91,7 @@ def cancel_order(order, user=None):
     if order.status == "CONFIRMED":
         for item in order.items.select_related("food"):
             item.food.stock += item.quantity
-            item.food.save(update_fields=["stock", "updated"])
+            item.food.save(update_fields=["stock", "updated_at"])
 
     return update_order_status(order, "CANCELLED", changed_by=user)
 
@@ -120,9 +120,25 @@ def update_payment_status(order, status):
     if order.payment_status == status:
         return
     order.payment_status = status
-    order.save(update_fields=["payment_status", "updated"])
+    order.save(update_fields=["payment_status", "updated_at"])
 
     transaction.on_commit(lambda: send_payment_email.delay(order.id, status))
+
+
+ADMIN_TRANSITION_MAP = {
+    "PREPARING": mark_preparing,
+    "READY": mark_ready,
+    "OUT FOR DELIVERY": mark_out_for_delivery,
+    "DELIVERED": mark_delivered,
+    "CANCELLED": cancel_order,
+}
+
+
+VENDOR_TRANSITION_MAP = {
+    "PREPARING": mark_preparing,
+    "READY": mark_ready,
+    "CANCELLED": cancel_order,
+}
 
 # @transaction.atomic
 # def mark_refunded(order, user=None, reason=None):

@@ -15,12 +15,12 @@ def add_item_to_cart(user, food, quantity=1):
     
     order = (
         Order.objects.select_for_update()
-        .filter(user=user, status="PENDING")
+        .filter(user=user, vendor=food.vendor, status="PENDING")
         .first()
     )
 
     if not order:       
-        order = Order.objects.create(user=user, status="PENDING")
+        order = Order.objects.create(user=user, vendor=food.vendor, status="PENDING")
 
     item, created = OrderItem.objects.select_for_update().get_or_create(
         order=order, 
@@ -38,7 +38,14 @@ def add_item_to_cart(user, food, quantity=1):
 
 @transaction.atomic
 def remove_item_from_cart(user, item_id, action):
-    order = Order.objects.select_for_update().filter(user=user, status="PENDING").first()
+    try:
+        item = OrderItem.objects.select_for_update().select_related(
+            "food__vendor", "order"
+        ).get(id=item_id)
+    except OrderItem.DoesNotExist:
+        raise ValidationError("Item not found in Cart")
+    
+    order = Order.objects.select_for_update().filter(user=user, vendor=item.food.vendor, status="PENDING").first()
     if not order:
         raise ValidationError("Cart is empty")
     
@@ -67,4 +74,4 @@ def remove_item_from_cart(user, item_id, action):
 def update_order_total(order):
     total = order.items.aggregate(total=Sum(F("quantity") * F("price_at_purchase")))["total"] or 0
     order.total = total
-    order.save(update_fields=["total"])
+    order.save(update_fields=["total", "updated_at"])
