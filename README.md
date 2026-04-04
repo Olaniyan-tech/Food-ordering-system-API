@@ -28,59 +28,51 @@ The system uses JWT authentication with secure cookie-based storage and is desig
    
    - Leave reviews for orders and vendors
    
-
-
 ## 🔹 Vendor Features
 
-- Vendor registration and onboarding
-
-- Vendor profile management (store info, location, etc.) 
-
-- Add, update, and delete food items
-
-- Manage menu categories
-
-- Toggle food availability (in stock / out of stock)
-
-- View and manage incoming orders
-
-- Update order status (e.g preparing → ready → cancel) 
-
-- View customer reviews and ratings
-
-
-
+   - Vendor registration and onboarding
+   
+   - Vendor profile management (store info, location, etc.) 
+   
+   - Add, update, and delete food items
+   
+   - Manage menu categories
+   
+   - Toggle food availability (in stock / out of stock)
+   
+   - View and manage incoming orders
+   
+   - Update order status (e.g preparing → ready → cancel) 
+   
+   - View customer reviews and ratings
+   
 ## 🔹 Admin Features
 
-- Approve or reject vendor registrations
-
-- Manage users and vendors 
-
-- Monitor platform activity (orders, payments)
-
-- Handle disputes and reports
-
-
+   - Approve or reject vendor registrations
+   
+   - Manage users and vendors 
+   
+   - Monitor platform activity (orders, payments)
+   
+   - Handle disputes and reports
 
 ## 🔹 Payment & Orders
 
-- Automatic calculation of order totals
-
-- Payment integration and verification
-
-
+   - Automatic calculation of order totals
+   
+   - Payment integration and verification
 
 ## 🔹 System & Architecture Features
 
-- Service layer architecture (clean separation of logic)
-
-- Background task processing (Celery + Redis)
-   - Order notifications
-   - Payment verifications
-
-- Scalable API design for frontend/mobile integration
-
-- Secure authentication (JWT with refresh & logout)
+   - Service layer architecture (clean separation of logic)
+   
+   - Background task processing (Celery + Redis)
+      - Order notifications
+      - Payment verifications
+   
+   - Scalable API design for frontend/mobile integration
+   
+   - Secure authentication (JWT with refresh & logout)
 
 
 
