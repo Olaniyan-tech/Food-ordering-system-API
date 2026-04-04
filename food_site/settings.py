@@ -110,17 +110,26 @@ PASSWORD_HASHERS = [
 ]
 
 
-CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.redis.RedisCache",
-        "LOCATION": config("REDIS_URL"),
-        "OPTIONS": {
-            "ssl_cert_reqs": ssl.CERT_REQUIRED
+if os.environ.get("ENVIRONMENT") == "production":
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": config("REDIS_URL"),
+            "OPTIONS": {
+                "ssl_cert_reqs": ssl.CERT_REQUIRED
+            }
+        }        
+    }
+    RATELIMIT_USE_CACHE = "default"
+
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.dummy.DummyCache",
         }
     }
-}
 
-RATELIMIT_USE_CACHE = "default"
+    RATELIMIT_USE_CACHE = "default"
 
 RATELIMIT_EXCEPTION_CLASS = "django_ratelimit.exceptions.Ratelimited"
 
