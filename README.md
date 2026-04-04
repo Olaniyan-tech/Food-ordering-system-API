@@ -1,20 +1,26 @@
-# Food Ordering System - API
+# Multi-Vendor Food Ordering Saas - API
 
 ## 🔹 Project Overview
 
-Food Ordering System API is a backend service built with Django REST Framework. It allows users to register, browse a menu, add items to their cart, manage orders, and perform checkout. The API uses JWT authentication with cookie-based token storage for secure access.
+Food Ordering SaaS API is a scalable multi-vendor backend built with Django REST Framework. It enables multiple vendors (restaurants) to onboard, manage their menus, and handle customer orders, while users can browse and order from different vendors in one platform.
 
-The project is designed to be scalable, maintainable, and ready for integration with a frontend or mobile app.
+The system uses JWT authentication with secure cookie-based storage and is designed for scalability, modularity, and real-world production use
 
 ## 🔹 Features
 
 - User registration and authentication (JWT + cookies)
 
-- Browsing available food items and menu categories
+- Secure token refresh and logout 
+
+- Browse food items across multiple vendors
+
+- View vendor profiles and menus
 
 - Adding items to cart (with quantity)
 
 - Updating cart items (increase, decrease, delete)
+
+- Place orders per vendor 
 
 - Checkout with address and phone number submission
 
@@ -22,15 +28,13 @@ The project is designed to be scalable, maintainable, and ready for integration 
 
 - View all orders and their status
 
-- Secure token refresh and logout
-
 - Automatic calculation of order totals
 
-- Payment integration and verification
+- Payment integration and verification (Paystack)
 
 - Background task automation (Celery + Redis)
 
-- Reviews system
+- Leave reviews for orders and vendors
 
 
 ##  🔹 Installation
