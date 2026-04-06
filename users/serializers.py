@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
 from .models import Profile
 from users.validators import validate_phone_format
+from django.db import transaction
 
 User = get_user_model()
 
@@ -19,14 +20,14 @@ class RegisterSerializer(serializers.ModelSerializer):
     
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("Email already exists.")
+            raise serializers.ValidationError("The email is already in use.")
         return value
     
     def validate_phone(self, value):
         validate_phone_format(value)
         
         if Profile.objects.filter(phone=value).exists():
-            raise serializers.ValidationError("Phone number already exists.")
+            raise serializers.ValidationError("The phone number is already in use.")
         
         return value
     
@@ -40,15 +41,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         phone = validated_data.pop("phone")
 
-
-        if Profile.objects.filter(phone=phone).exists():
-            raise serializers.ValidationError({"phone": "Phone number already exists."})
-
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data.get('email', ''),
-            password=validated_data['password']
-        )
+        with transaction.atomic():
+            user = User.objects.create_user(
+                username=validated_data['username'],
+                email=validated_data.get('email', ''),
+                password=validated_data['password']
+            )
 
         Profile.objects.create(user=user, phone=phone)
 
@@ -67,13 +65,13 @@ class UserProfileSerializer(serializers.ModelSerializer):
     
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exclude(id=self.instance.user.id).exists():
-            raise ValidationError("Email already exists")
+            raise ValidationError("The email is already in use.")
         return value
     
     def validate_phone(self, value):
         validate_phone_format(value)
         if Profile.objects.filter(phone=value).exclude(id=self.instance.id).exists():
-            raise serializers.ValidationError("Phone number already exists")
+            raise serializers.ValidationError("The phone number is already in use.")
         return value
 
     def update(self, instance, validated_data):
