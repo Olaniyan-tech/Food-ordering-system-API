@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Q, UniqueConstraint
+from django.db.models.functions import Lower
 from django.contrib.auth.models import User
 from django.utils import timezone
 from food.utils import save_with_unique_slug
@@ -27,7 +28,7 @@ class Vendor(models.Model):
     business_name = models.CharField(max_length=200)
     slug = models.SlugField(unique=True)
     description = models.TextField(blank=True)
-    logo = models.ImageField(upload_to="vendors/", null=True, blank=True)
+    profile_photo = models.ImageField(upload_to="vendors/", null=True, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     address = models.CharField(max_length=300)
     city = models.CharField(max_length=100)
@@ -37,6 +38,13 @@ class Vendor(models.Model):
     is_approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            UniqueConstraint(
+                Lower("business_name"), name="unique_business_name_ci"
+            )
+        ]
 
     def save(self, *args, **kwargs):
         if not self.slug:
@@ -182,3 +190,4 @@ class Review(models.Model):
     def __str__(self):
         order_id = self.order_id if self.order_id else "unknown"
         return f"Review by {self.user.username} for Order {order_id}" 
+
