@@ -10,6 +10,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken, AuthenticationFailed
 from users.models import Profile
 from drf_spectacular.utils import extend_schema
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
 import logging
 from django.conf import settings
 
@@ -22,35 +24,32 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(request=RegisterSerializer, responses={201: RegisterSerializer})
+    @method_decorator(ratelimit(key="ip", rate="5/m", method="POST", block=True))
     def post(self, request):
-        try:
-            serializer = RegisterSerializer(data=request.data)
-            if serializer.is_valid():
-                user = serializer.save()
-                logger.info(f"New user registered: {user.email if hasattr(user, 'email') else user.username}")
-                return Response({
-                    "message": "Account created successfully. Please log in to continue",
-                    "username": user.username,
-                    "email": user.email,
-                    "phone": user.profile.phone},
-                    status=status.HTTP_201_CREATED)
-        
-            logger.warning(f"Registration failed: {serializer.errors}")
+        serializer = RegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            logger.info(f"New user registered: { user.username}")
             return Response({
-                "message": "Registration failed. Check input.",
-                "errors": serializer.errors
-            }, status=status.HTTP_400_BAD_REQUEST)
+                "message": "Account created successfully. Please log in to continue",
+                "username": user.username,
+                "email": user.email,
+                "phone": user.profile.phone},
+                status=status.HTTP_201_CREATED)
+    
+        logger.warning(f"Registration failed: {serializer.errors}")
+        return Response({
+            "errors": serializer.errors}, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
-        except Exception as e:
-            logger.exception("Unexpected error during registration")
-            return Response({
-                "message": "Server error occurred during registration"
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class CookieTokenObtainPairView(TokenObtainPairView):
     permission_classes = [AllowAny]
     serializer_class = TokenObtainPairSerializer
 
+    @extend_schema(request=TokenObtainPairSerializer, responses={200: None})
+    @method_decorator(ratelimit(key="ip", rate="10/m", method="POST", block=True))
     def post(self, request, *args, **kwargs):
         if request.data.get("refresh"):
             return Response({"error": "Do not send a refresh token in body"}, status=status.HTTP_400_BAD_REQUEST)
@@ -91,6 +90,8 @@ class CookieTokenObtainPairView(TokenObtainPairView):
 class CookieTokenRefreshView(TokenRefreshView):
     permission_classes = [AllowAny]
     
+    @extend_schema(request=TokenObtainPairSerializer, responses={200: None})
+    @method_decorator(ratelimit(key="ip", rate="10/m", method="POST", block=True))
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get('refresh_token')
         if not refresh_token:
@@ -125,6 +126,7 @@ class LogoutView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(responses={200: None})
+    @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
     def post(self, request):
         refresh_token = request.COOKIES.get("refresh_token")
 
@@ -147,17 +149,19 @@ class LogoutView(APIView):
 
 class UserProfileView(generics.GenericAPIView):
     serializer_class = UserProfileSerializer
-
+    
     def get_object(self):
         profile, created = Profile.objects.get_or_create(user=self.request.user)
         return profile
 
     @extend_schema(responses={200: None})
+    @method_decorator(ratelimit(key="user", rate="10/m", method="GET", block=True))
     def get(self, request):
         serializer = self.get_serializer(self.get_object())
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     @extend_schema(responses={200: None})
+    @method_decorator(ratelimit(key="user", rate="10/m", method="PATCH", block=True))
     def patch(self, request):
         serializer = self.get_serializer(
             self.get_object(),
@@ -166,4 +170,10 @@ class UserProfileView(generics.GenericAPIView):
         )
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        logger.info(f"User {request.user.username} updated their profile")
+
+        return Response({
+            "message": "Profile updated successfully",
+            "data": serializer.data},
+            status=status.HTTP_200_OK
+        )
