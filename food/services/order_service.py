@@ -3,6 +3,7 @@ from django.utils import timezone
 from food.models import Food, Order, OrderStatusHistory
 from food.tasks import send_order_status_email, send_payment_email
 from django.core.exceptions import ValidationError
+from django.core.cache import cache
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,10 +20,18 @@ STATUS_TIMESTAMP_FIELDS = {
 }
 
 
+def _require_status(order, expected_status, message):
+    if order.status != expected_status:
+        raise ValidationError(message)
+
+
 @transaction.atomic
 def update_order_status(order, new_status, changed_by=None):
     if order.status == new_status:
         raise ValidationError(f"Order is already {new_status}")
+
+    if new_status not in STATUS_TIMESTAMP_FIELDS:
+        raise ValidationError("Invalid order status")
     
     order.status = new_status
     timestamp_field = STATUS_TIMESTAMP_FIELDS.get(new_status)
@@ -46,6 +55,7 @@ def update_order_status(order, new_status, changed_by=None):
         )
 
     transaction.on_commit(lambda: send_order_status_email.delay(order.id, new_status))
+    transaction.on_commit(lambda: cache.delete(f"vendor_dashboard_stats_{order.vendor_id}"))
 
     return order
 
@@ -70,16 +80,14 @@ def finalize_order(order, user=None):
 
 @transaction.atomic
 def mark_preparing(order, user=None):
-    if order.status != "CONFIRMED":
-        raise ValidationError("Order must be confirmed before preparing")
+    _require_status(order, "CONFIRMED", "Order must be confirmed before preparing")
     
     return update_order_status(order, "PREPARING", changed_by=user)
 
 
 @transaction.atomic
 def mark_ready(order, user=None):
-    if order.status != "PREPARING":
-        raise ValidationError("Order must be preparing before ready")
+    _require_status(order, "PREPARING", "Order must be preparing before ready")
     
     return update_order_status(order, "READY", changed_by=user)
 
@@ -91,6 +99,7 @@ def cancel_order(order, user=None):
     
     if order.status == "CONFIRMED":
         for item in order.items.select_related("food"):
+            food = Food.objects.select_for_update().get(id=item.food_id)
             item.food.stock += item.quantity
             item.food.save(update_fields=["stock", "updated_at"])
 
@@ -99,17 +108,18 @@ def cancel_order(order, user=None):
 
 @transaction.atomic
 def mark_out_for_delivery(order, user=None):
-    valid_pre_states = ["CONFIRMED", "PREPARING", "READY"]
-    if order.status not in valid_pre_states:
-        raise ValidationError("Order must be confirmed before delivery")
+    _require_status(
+        order,
+        "READY",
+        "Order must be ready before marking as out for delivery",
+    )
     
     return update_order_status(order, "OUT FOR DELIVERY", changed_by=user)
 
 
 @transaction.atomic
 def mark_delivered(order, user=None):
-    if order.status != "OUT FOR DELIVERY":
-        raise ValidationError("Order must be out for delivery")
+    _require_status(order, "OUT FOR DELIVERY", "Order must be out for delivery")
     
     return update_order_status(order, "DELIVERED", changed_by=user)
 
@@ -141,12 +151,3 @@ VENDOR_TRANSITION_MAP = {
     "CANCELLED": cancel_order,
 }
 
-# @transaction.atomic
-# def mark_refunded(order, user=None, reason=None):
-#     if order.status not in ["CANCELLED", "DELIVERED"]:
-#         raise ValidationError("Only cancelled or delivered orders can be refunded")
-    
-#     if order.status == "DELIVERED" and not reason:
-#         raise ValidationError("Refund after delivery requires a reason")
-    
-#     return update_order_status(order, "REFUNDED", changed_by=user)
