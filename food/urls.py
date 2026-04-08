@@ -38,6 +38,11 @@ from .views import(
     AdminVendorRejectView,
     AdminVendorActivateView,
     AdminVendorDeactivateView,
+    CategoryListView,
+    CategoryFoodsView,
+    AdminCategoryCreateView,
+    AdminCategoryDetailView
+
 )
 
 app_name = "food"
@@ -79,6 +84,9 @@ urlpatterns = [
     path("admin/vendor/<int:vendor_id>/reject/", AdminVendorRejectView.as_view(), name="admin-vendor-reject"),
     path("admin/vendor/<int:vendor_id>/activate/", AdminVendorActivateView.as_view(), name="admin-vendor-activate"),
     path("admin/vendor/<int:vendor_id>/deactivate/", AdminVendorDeactivateView.as_view(), name="admin-vendor-deactivate"),
-
+    path("categories/", CategoryListView.as_view(), name="categories"),
+    path("category/<slug:slug>/foods/", CategoryFoodsView.as_view(), name="category-foods"),
+    path("admin/category/create/", AdminCategoryCreateView.as_view(), name="admin-category-create"),
+    path("admin/category/<int:category_id>/details/", AdminCategoryDetailView.as_view(), name="admin-category-detail"),
 
 ]
