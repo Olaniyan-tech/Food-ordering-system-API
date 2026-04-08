@@ -6,8 +6,15 @@ from drf_spectacular.utils import extend_schema_field
 
 def validate_vendor_phone(value, instance):
     validate_phone_format(value)
-    if Vendor.objects.filter(phone=value).exclude(id=instance.id).exists():
+
+    queryset = Vendor.objects.filter(phone=value)
+
+    if instance:
+        queryset = queryset.exclude(id=instance.id)
+    
+    if queryset.exists():
         raise serializers.ValidationError("This phone number is already used by another vendor")
+    
     return value
 
 
@@ -43,9 +50,6 @@ class VendorProfileSerializer(serializers.ModelSerializer):
             "business_name",
             "description",
             "profile_photo",
-            "city",
-            "state",
-            "is_active"
         )
 
 
@@ -168,10 +172,21 @@ class FoodWriteSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError("Stock cannot be negative")
         return value
-        
+
+
+class CartFoodSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Food
+        fields = (
+            "id",
+            "name",
+            "slug",
+            "price",
+            "image",
+        )
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    food = FoodSerializer(read_only=True)
+    food = CartFoodSerializer(read_only=True)
     subtotal = serializers.SerializerMethodField()
 
     class Meta:
