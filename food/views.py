@@ -10,8 +10,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import status
-from food.models import Food, Order, Vendor
+from food.models import Category, Food, Order, Vendor
 from .serializers import (
+    CategorySerializer,
     FoodSerializer,
     FoodWriteSerializer, 
     OrderSerializer, 
@@ -51,8 +52,11 @@ from food.services.vendor_services import (
     toggle_vendor_food_availability,
 )
 from food.selectors import (
+    get_all_categories,
+    get_category_by_id,
     get_available_foods,
     get_available_food_by_id,
+    get_category_by_slug,
     get_user_orders,
     get_pending_order,
     get_order_by_id,
@@ -85,6 +89,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from drf_spectacular.utils import extend_schema
+from django.db import transaction
 import logging
 
 logger = logging.getLogger(__name__)
@@ -233,16 +238,20 @@ class UpdateOrderDetailView(APIView):
     @extend_schema(request=OrderDeliveryDetailSerializer, responses={200: None})
     @method_decorator(ratelimit(key="user", rate="10/m", method="PATCH", block=True))
     def patch(self, request):
-        order = get_pending_order(request.user)
-        if not order:
-            return Response({"error" : "No pending order"}, status=status.HTTP_404_NOT_FOUND)
+
+        with transaction.atomic():
+            order = get_pending_order(request.user)
+            if not order:
+                return Response({"error" : "No pending order"}, status=status.HTTP_404_NOT_FOUND)
 
         serializer = OrderDeliveryDetailSerializer(order, data=request.data, partial=True)
         
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response({"message" : "Order details updated"}, status=status.HTTP_200_OK)
+        return Response({
+            "message" : "Order details updated",
+            "data": serializer.data}, status=status.HTTP_200_OK)
 
 
 class CheckOutView(APIView):
@@ -895,6 +904,7 @@ class VendorFoodDetailView(APIView):
         try:
             food = update_vendor_food(
                 food,
+                user=request.user,
                 validated_data=serializer.validated_data
             )
         except ValidationError as e:
@@ -1186,4 +1196,81 @@ class AdminVendorDeactivateView(APIView):
         return Response({
             "message": f"Vendor {vendor.business_name} has been deactivated."}, 
             status=status.HTTP_200_OK
+        )
+
+
+class CategoryListView(generics.ListAPIView):
+    serializer_class = CategorySerializer
+    permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        return get_all_categories()
+    
+    @method_decorator(ratelimit(key="ip", rate="60/m", method="GET", block=True))
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+
+class CategoryFoodsView(generics.ListAPIView):
+    # all available foods under a category
+    serializer_class = FoodSerializer
+    permission_classes = [AllowAny]
+    filterset_class = FoodFilter
+
+    def get_queryset(self):
+        slug = self.kwargs["slug"]
+        try:
+            category = get_category_by_slug(slug)
+        except Category.DoesNotExist:
+            raise NotFound("Category not found")
+        return get_available_foods().filter(category=category)
+
+
+class AdminCategoryCreateView(APIView):
+    permission_classes = [IsStaff]
+
+    def post(self, request):
+        serializer = CategorySerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+        category = serializer.save()
+        return Response(
+            CategorySerializer(category).data,
+            status=201
+        )
+
+
+
+class AdminCategoryDetailView(APIView):
+    permission_classes = [IsStaff]
+
+    def get(self, request, category_id):
+        try:
+            category = get_category_by_id(category_id)
+        except Category.DoesNotExist:
+            raise NotFound("Category not found")
+        return Response(CategorySerializer(category).data)
+    
+    def patch(self, request, category_id):
+        try:
+            category = get_category_by_id(category_id)
+        except Category.DoesNotExist:
+            raise NotFound("Category not found")
+        serializer = CategorySerializer(
+            category, data=request.data, partial=True
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+        category = serializer.save()
+        return Response(CategorySerializer(category).data)
+
+    def delete(self, request, category_id):
+        try:
+            category = get_category_by_id(category_id)
+        except Category.DoesNotExist:
+            raise NotFound("Category not found")
+        category.delete()
+        return Response(
+            {"message": "Category deleted successfully"},
+            status=204
         )
