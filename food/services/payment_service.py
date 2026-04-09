@@ -128,3 +128,5 @@ def verify_payment(reference):
         f"— status: {payment_data.get('status')} "
         f"amount: {payment_data.get('amount')} "   
     )
+
+    return payment_data
