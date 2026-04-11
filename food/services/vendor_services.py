@@ -1,4 +1,4 @@
-from food.models import Vendor, Food
+from food.models import Vendor, Food, OrderItem
 from django.db import transaction, IntegrityError
 from django.core.exceptions import ValidationError
 import logging
@@ -142,7 +142,19 @@ def update_vendor_food(food, user, validated_data):
 @transaction.atomic
 def delete_vendor_food(food):
     _ensure_food_vendor_can_manage(food)
+
+    active_orders = OrderItem.objects.filter(
+        food=food, 
+        order__status__in=["PENDING", "CONFIRMED", "PREPARING"]
+        ).exists()
+    
+    if active_orders:
+        food.available = False
+        food.save(update_fields=["available"])
+        return "hidden"
+
     food.delete()
+    return "deleted"
 
 
 @transaction.atomic

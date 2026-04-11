@@ -928,7 +928,7 @@ class VendorFoodDetailView(APIView):
     def delete(self, request, food_id):
         food = self.get_food(request, food_id)
         try:
-            delete_vendor_food(food)
+            result = delete_vendor_food(food)
         except ValidationError as e:
             return Response(
                 {"error": e.messages[0] if e.messages else str(e)},
@@ -936,6 +936,12 @@ class VendorFoodDetailView(APIView):
             )
 
         logger.info(f"Vendor {request.user.vendor.business_name} deleted food: {food.name}")
+
+        if result == "hidden":
+            return Response({
+                "message": f"{food.name} cannot be deleted because it has existing orders. It has been marked as unavailable instead."},
+                status=status.HTTP_200_OK
+            )
 
         return Response({
             "message": f"{food.name} deleted successfully."},
