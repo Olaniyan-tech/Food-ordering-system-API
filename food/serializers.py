@@ -50,6 +50,7 @@ class VendorProfileSerializer(serializers.ModelSerializer):
             "business_name",
             "description",
             "profile_photo",
+            "slug",
         )
 
 
