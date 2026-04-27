@@ -191,19 +191,18 @@ MIDDLEWARE = [
 ]
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://food-ordering-system-egsl.onrender.com",
     config("FRONTEND_URL", default="http://localhost:3000"),
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 if DEBUG:
     CORS_ALLOW_ALL_ORIGINS = True
 else:
-    CORS_ALLOW_ALL_ORIGINS = False
     CORS_ALLOWED_ORIGINS = [
         config("FRONTEND_URL", default="http://localhost:3000")
     ]
 
-CORS_ALLOW_CREDENTIALS = True
 
 ROOT_URLCONF = 'food_site.urls'
 
