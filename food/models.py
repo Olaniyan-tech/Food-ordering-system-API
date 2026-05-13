@@ -115,6 +115,7 @@ class Order(models.Model):
     address = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=15, blank=True)
     status = models.CharField(max_length=20, choices=STATUS, default="PENDING")
+    delivery_fee = models.DecimalField(max_digits=10, decimal_places=2, default=500.00)
     total = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -200,3 +201,69 @@ class Review(models.Model):
         order_id = self.order_id if self.order_id else "unknown"
         return f"Review by {self.user.username} for Order {order_id}" 
 
+
+class Plan(models.Model):
+    PLAN_TYPES = [
+        ("FREE", "Free"),
+        ("BASIC", "Basic"),
+        ("PREMIUM", "Premium")
+    ]
+
+    name = models.CharField(max_length=50, choices=PLAN_TYPES, unique=True)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    max_food_listings = models.PositiveIntegerField(default=0) # 0 =unlimited
+    max_orders_per_month = models.PositiveIntegerField(default=0) # 0 = unlimited
+    priority_listing= models.BooleanField(default=False)
+    can_receive_reviews = models.BooleanField(default=False)
+    analytics_access = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
+class Subscription(models.Model):
+    STATUS = [
+        ("ACTIVE", "Active"),
+        ("EXPIRED", "Expired"),
+        ("CANCELLED", "Cancelled")
+    ]
+
+    vendor = models.OneToOneField(Vendor, on_delete=models.CASCADE, related_name="subscription", null=True, blank=True)
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT, related_name="subscriptions")
+    status = models.CharField(max_length=20, choices=STATUS, default="ACTIVE")
+    start_date = models.DateTimeField(default=timezone.now)
+    end_date = models.DateTimeField()
+    payment_reference = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.plan.name}"
+    
+    def is_valid(self):
+        return self.status == "ACTIVE" and self.end_date > timezone.now()   
+
+
+class SubscriptionHistory(models.Model):
+    EVENT = [
+        ("SUBSCRIBED", "Subscribed"),
+        ("EXPIRED", "Expired"),
+        ("EXPIRING_SOON", "Expiring soon"),
+        ("CANCELLED", "Cancelled")
+    ]
+
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="subscription_history")
+    plan = models.ForeignKey(Plan, on_delete=models.PROTECT)
+    event = models.CharField(max_length=20, choices=EVENT)
+    payment_reference = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.vendor.business_name} → {self.event} → {self.plan.name}"
