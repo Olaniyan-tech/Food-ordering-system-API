@@ -43,10 +43,9 @@ def remove_item_from_cart(user, item_id, action):
             "food__vendor", "order"
         ).get(id=item_id)
 
-        item = OrderItem.objects.select_for_update().get(id=item.id)
-
         item.refresh_from_db()
         food = Food.objects.select_related("vendor").get(id=item.food_id)
+        
     except OrderItem.DoesNotExist:
         raise ValidationError("Item not found in Cart")
     

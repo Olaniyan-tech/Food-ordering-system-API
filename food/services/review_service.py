@@ -2,6 +2,7 @@ from django.core.exceptions import ValidationError
 from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from food.models import Review
+from food.services.subscription_service import get_or_create_free_subscription
 
 
 def _food_reviews_stats_cache_key(food_id):
@@ -39,7 +40,8 @@ def create_review(order, user, validated_data):
     )
     
     for vendor in vendors:
-        if not vendor.subscription.plan.can_receive_reviews:
+        subscription = get_or_create_free_subscription(vendor)
+        if not subscription.plan.can_receive_reviews:
             raise ValidationError(
                 f"{vendor.business_name} does not accept reviews on their current plan"
             )

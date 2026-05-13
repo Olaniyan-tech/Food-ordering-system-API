@@ -1,7 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 from food.models import Food, Order, OrderStatusHistory
-from food.services.subscription_service import check_vendor_order_limit
+from food.services.subscription_service import get_or_create_free_subscription, check_vendor_order_limit
 from food.tasks import send_order_status_email, send_payment_email
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
@@ -74,7 +74,8 @@ def finalize_order(order, user=None):
         food = Food.objects.select_for_update().get(id=item.food_id)
         
         vendor = food.vendor
-        if not vendor.subscription.is_valid():
+        subscription = get_or_create_free_subscription(vendor)
+        if not subscription.is_valid():
             raise ValidationError(
                 f"{vendor.business_name} is currently unavailable. "
                 f"Please remove their items from your cart"
@@ -133,8 +134,8 @@ def cancel_order(order, user=None):
     if order.status == "CONFIRMED":
         for item in order.items.select_related("food"):
             food = Food.objects.select_for_update().get(id=item.food_id)
-            item.food.stock += item.quantity
-            item.food.save(update_fields=["stock", "updated_at"])
+            food.stock += item.quantity
+            food.save(update_fields=["stock", "updated_at"])
 
     return update_order_status(order, "CANCELLED", changed_by=user)
 

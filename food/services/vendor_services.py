@@ -2,6 +2,7 @@ from food.models import Vendor, Food, OrderItem
 from django.db import transaction, IntegrityError
 from django.core.exceptions import ValidationError
 from food.tasks import send_vendor_status_email
+from food.services.subscription_service import get_or_create_free_subscription
 import logging
 
 logger = logging.getLogger(__name__)
@@ -155,6 +156,20 @@ def activate_vendor(vendor, activated_by=None):
 @transaction.atomic
 def create_vendor_food(vendor, validated_data):
     _ensure_vendor_can_manage_food(vendor)
+
+    subscription = get_or_create_free_subscription(vendor)
+    plan = subscription.plan
+
+    # 0 = unlimited
+    if plan.max_food_listings > 0:
+        current_food_count = Food.objects.filter(vendor=vendor).count()
+
+        if current_food_count >= plan.max_food_listings:
+            raise ValidationError(
+                f"You have reached your plan limit of {plan.max_food_listings} food listings. "
+                f"Upgrade your plan to add more."
+            )
+    
     return Food.objects.create(vendor=vendor, **validated_data)
 
 

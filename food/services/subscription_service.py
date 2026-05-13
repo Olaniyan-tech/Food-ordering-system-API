@@ -1,7 +1,7 @@
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 from datetime import timedelta
-from food.models import Food, Order, Plan, Subscription, SubscriptionHistory
+from food.models import Order, Plan, Subscription, SubscriptionHistory
 
 
 def record_subscription_history(vendor, plan, event, payment_reference=""):
@@ -105,6 +105,8 @@ def check_subscription_status(vendor):
     try:
         subscription = vendor.subscription
         if subscription.status == "ACTIVE" and subscription.end_date < timezone.now():
+            if subscription.plan.name == "FREE":
+                return subscription
             free_plan = Plan.objects.get(name="FREE")
             subscription.status = "EXPIRED"
             subscription.plan = free_plan
@@ -119,25 +121,6 @@ def check_subscription_status(vendor):
 
     except Subscription.DoesNotExist:
         return get_or_create_free_subscription(vendor)
-
-
-def add_food_listing(vendor, food_data):
-    #Check subscription limit before allowing vendor to add more food
-
-    subscription = vendor.subscription
-    plan = subscription.plan
-
-    # 0 = unlimited
-    if plan.max_food_listings > 0:
-        current_food_count = Food.objects.filter(vendor=vendor).count()
-
-        if current_food_count >= plan.max_food_listings:
-            raise ValidationError(
-                f"You have reached your plan limit of {plan.max_food_listings} food listings. "
-                f"Upgrade your plan to add more."
-            )
-    
-    return Food.objects.create(vendor=vendor, **food_data)
 
 
 def check_vendor_order_limit(vendor):
@@ -155,7 +138,7 @@ def check_vendor_order_limit(vendor):
     if monthly_orders >= plan.max_orders_per_month:
         raise ValidationError(
             f"You have reached your plan limit of "
-            f"{plan.max_orders_per_month}. You need to upgrage."
+            f"{plan.max_orders_per_month}. You need to upgrade."
         )
     
 
