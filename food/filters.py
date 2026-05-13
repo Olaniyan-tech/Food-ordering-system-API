@@ -13,8 +13,8 @@ class FoodFilter(django_filters.FilterSet):
 
 
 class OrderFilter(django_filters.FilterSet):
-    status = django_filters.CharFilter(field_name="status", lookup_expr="iexact")
-    payment_status = django_filters.CharFilter(field_name="payment_status", lookup_expr="iexact")
+    status = django_filters.CharFilter(field_name="status", lookup_expr="exact")
+    payment_status = django_filters.CharFilter(field_name="payment_status", lookup_expr="exact")
 
     class Meta:
         model = Order

@@ -64,7 +64,6 @@ from food.services.subscription_service import (
     subscribe_vendor,
     cancel_subscription,
     check_subscription_status,
-    add_food_listing
 )
 from food.selectors import (
     get_all_categories,
@@ -1333,7 +1332,7 @@ class VendorSubscriptionVIew(APIView):
 
     @method_decorator(ratelimit(key="user", rate="30/m", method="GET", block=True))
     @extend_schema(responses={200: SubscriptionSerializer})
-    def get(self, request, vendor):        
+    def get(self, request):        
         vendor = request.user.vendor
         subscription = check_subscription_status(vendor)
         
@@ -1342,52 +1341,6 @@ class VendorSubscriptionVIew(APIView):
             status=status.HTTP_200_OK
         )
         
-
-class SubscribeView(APIView):
-    permission_classes = [IsApprovedVendor]
-
-    @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
-    @extend_schema(request=SubscriptionSerializer, responses={200: SubscriptionSerializer})
-    def post(self, request):
-        plan_id = request.data.get("plan_id")
-        payment_reference = request.data.get("payment_reference")
-
-        if not plan_id:
-            return Response({
-                "error": "plan_id is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-
-        if not payment_reference:
-            return Response({
-                "error": "payment_reference is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        try:
-            subscription = subscribe_vendor(
-                vendor=request.user.vendor,
-                plan_id=plan_id,
-                payment_reference=payment_reference
-            )
-        except ValidationError as e:
-            return Response({
-                "error": e.messages[0] if e.messages[0] else str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        logger.info(
-            f"Vendor {request.user.vendor.business_name} " 
-            f"subscribed to {subscription.plan.name}"
-        )
-        
-        return Response({
-            "message": "You subscribed successfully",
-            "data": SubscriptionSerializer(subscription).data},
-            status=status.HTTP_200_OK
-        )
-            
 
 class CancelSubscriptionView(APIView):
     permission_classes = [IsVendorOwner]
@@ -1408,34 +1361,6 @@ class CancelSubscriptionView(APIView):
         return Response({
             "message": "Subsription cancelled. You are now on the free plan."},
             status=status.HTTP_200_OK
-        )
-
-
-class VendorAddFoodView(APIView):
-    permission_classes = [IsApprovedVendor]
-
-    @method_decorator(ratelimit(key="user", rate="30/m", method="POST", block=True))
-    @extend_schema(request=FoodSerializer, responses={201: FoodSerializer})
-    def post(self, request):
-        serializer = FoodSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            food = add_food_listing(
-                vendor=request.user.vendor,
-                food_data=serializer.validated_data
-            )
-        except ValidationError as e:
-            return Response({
-                "error": e.messages[0] if e.messages else str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return Response({
-            "message": "Food added successfully",
-            "data": FoodSerializer(food).data}, 
-            status=status.HTTP_201_CREATED
         )
 
 
@@ -1467,6 +1392,7 @@ class InitializeVendorSubscriptionPaymentView(APIView):
     permission_classes = [IsApprovedVendor]
 
     @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
+    @extend_schema(responses={200: None})
     def post(self, request):
         plan_id = request.data.get("plan_id")
         if not plan_id:
@@ -1511,6 +1437,7 @@ class VerifyVendorSubscriptionPaymentView(APIView):
     permission_classes = [IsApprovedVendor]
 
     @method_decorator(ratelimit(key="user", rate="10/m", method="GET", block=True))
+    @extend_schema(responses={200: SubscriptionSerializer})
     def get(self, request, reference):
         vendor = request.user.vendor
 
@@ -1576,7 +1503,8 @@ class VerifyVendorSubscriptionPaymentView(APIView):
             f"activated {plan.name} subscription"
         )
 
-        return Response(
-            SubscriptionSerializer(subscription).data,
+        return Response({
+            "message": "You subscribed successfully",
+            "data": SubscriptionSerializer(subscription).data},
             status=status.HTTP_200_OK
         )

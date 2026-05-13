@@ -12,6 +12,7 @@ class Command(BaseCommand):
                 "can_receive_reviews": False,
                 "priority_listing": False,
                 "analytics_access": False,
+                "delivery_fee": True,        
                 "description": "List up to 5 foods, 50 orders/month"
             }
         )
@@ -24,7 +25,8 @@ class Command(BaseCommand):
                 "can_receive_reviews": True,
                 "priority_listing": False,
                 "analytics_access": False,
-                "description": "List up to 20 foods, 150 orders/month + reviews"
+                "delivery_fee": True,
+                "description": "List up to 20 foods, 200 orders/month + reviews"
             }
         )
         Plan.objects.get_or_create(
@@ -36,6 +38,7 @@ class Command(BaseCommand):
                 "can_receive_reviews": True,
                 "priority_listing": True,
                 "analytics_access": True,
+                "delivery_fee": False, # premium vendor does not charge delivery fee
                 "description": "Unlimited listings + priority placement + analytics"
             }
         )
