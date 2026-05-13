@@ -25,13 +25,13 @@ def send_welcome_email(self, user_id):
     
         send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
             to=[{"email": user.email, "name": user.username}],
-            sender={"email": "alliolaniyan1@gmail.com", "name": "OlaTech Food"},
-            subject="Welcome to OlaTech Food 🍔",
+            sender={"email": "alliolaniyan1@gmail.com", "name": "BiteBoard"},
+            subject="Welcome to BiteBoard 🍔",
             html_content=f"""
                 <h2>Hi {user.username},</h2>
-                <p>Welcome to OlaTech Food! We're excited to have you.</p>
+                <p>Welcome to BiteBoard! We're excited to have you.</p>
                 <p>Start exploring our menu and place your first order today.</p>
-                <p>OlaTech Food</p>
+                <p>BiteBoard Team</p>
             """
         )
 
