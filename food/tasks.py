@@ -331,7 +331,7 @@ def _send_vendor_email(vendor, email_type):
     
 
 @shared_task(bind=True, max_retries=3)
-def send_vendor_status_email(self, email_type, vendor_id):
+def send_vendor_status_email(self, vendor_id, email_type):
     vendor = get_valid_vendor_for_email(vendor_id)
     if not vendor:
         return

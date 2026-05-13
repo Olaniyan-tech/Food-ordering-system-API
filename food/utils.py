@@ -47,7 +47,6 @@ def save_with_unique_slug(instance, base_text, slug_field="slug", attempts=1):
 
 
 
-
 def get_valid_vendor_for_email(vendor_id):
     from food.models import Vendor
     from food.selectors import get_vendor_by_id_for_email
