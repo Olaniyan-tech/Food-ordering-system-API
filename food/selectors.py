@@ -26,7 +26,7 @@ def get_category_by_id(category_id):
 
 def get_available_foods(vendor=None):
     qs = Food.objects.filter(available=True
-        ).select_related("vendor__suscription__plan", "category"
+        ).select_related("vendor__subscription__plan", "category"
         ).order_by("-vendor__subscription__plan__priority_listing", "name") # premium vendors
     
     if vendor:
@@ -200,7 +200,7 @@ def get_all_plans():
     return Plan.objects.filter(is_active=True)
 
 def get_plan_by_id(plan_id):
-    return Plan.objects.filter(id=plan_id, is_active=True)
+    return Plan.objects.get(id=plan_id, is_active=True)
 
 def get_subscription_by_reference(reference, vendor):
     return Subscription.objects.select_related("vendor", "plan").get(

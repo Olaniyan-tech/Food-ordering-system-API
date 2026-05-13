@@ -337,9 +337,10 @@ class SubscriptionSerializer(serializers.ModelSerializer):
 
 
 class SubscriptionHistorySerializer(serializers.ModelSerializer):
-    plan_name = serializers.SerializerMethodField(source="plan.name", read_only=True)
+    plan_name = serializers.CharField(source="plan.name", read_only=True)
 
     class Meta:
         model = SubscriptionHistory
         fields = ["id", "plan_name", "event", "payment_reference", "created_at"]
+    
         
