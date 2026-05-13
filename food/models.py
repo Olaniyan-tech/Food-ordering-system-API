@@ -216,6 +216,7 @@ class Plan(models.Model):
     priority_listing= models.BooleanField(default=False)
     can_receive_reviews = models.BooleanField(default=False)
     analytics_access = models.BooleanField(default=False)
+    delivery_fee = models.BooleanField(default=True) # True = vendor charges delivery fee
     is_active = models.BooleanField(default=True)
     description = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -242,7 +243,7 @@ class Subscription(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.user.username} - {self.plan.name}"
+        return f"{self.vendor.business_name} - {self.plan.name}"
     
     def is_valid(self):
         return self.status == "ACTIVE" and self.end_date > timezone.now()   
