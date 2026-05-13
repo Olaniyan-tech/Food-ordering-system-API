@@ -5,6 +5,7 @@ import requests
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from food.models import Subscription
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +143,7 @@ def initialize_vendor_subscription_payment(vendor, plan):
         subscription = vendor.subscription
         if subscription.is_valid() and subscription.plan == plan:
             raise ValidationError("You are already subscribed to this plan")
-    except:
+    except Subscription.DoesNotExist:
         pass
 
     reference = f"SUB-{vendor.id}-{uuid.uuid4().hex[:8].upper()}"
@@ -161,9 +162,10 @@ def initialize_vendor_subscription_payment(vendor, plan):
     }
 
     response, data = _request_json(
+        "POST",
         f"{settings.PAYSTACK_BASE_URL}/transaction/initialize",
         json=payload,
-        headers=_build_headers
+        headers=_build_headers()
     )
     
     if not response.ok:
