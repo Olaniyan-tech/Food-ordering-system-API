@@ -1,6 +1,8 @@
 import uuid
 from django.utils.text import slugify
 from django.db import IntegrityError, transaction
+from food.models import Vendor
+from food.selectors import get_vendor_by_id_for_email
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,3 +46,24 @@ def save_with_unique_slug(instance, base_text, slug_field="slug", attempts=1):
 
         setattr(instance, slug_field, None)
         return save_with_unique_slug(instance, base_text, slug_field, attempts + 1)
+
+
+
+
+def get_valid_vendor_for_email(vendor_id):
+    try:
+        vendor = get_vendor_by_id_for_email(vendor_id)
+
+    except Vendor.DoesNotExist:
+        logger.error(
+            f"Vendor {vendor_id} not found, skipping email"
+        )
+        return None
+
+    if not vendor.user:
+        logger.critical(
+            f"Vendor {vendor_id} exists but has no user attached"
+        )
+        return None
+
+    return vendor

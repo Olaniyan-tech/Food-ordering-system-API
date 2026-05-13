@@ -1,7 +1,19 @@
-from food.models import Food, Order, Review, Vendor, Category
+from food.models import(
+    Food, 
+    Order, 
+    OrderItem,
+    Review, 
+    Vendor, 
+    Category, 
+    Plan, 
+    Subscription,
+    SubscriptionHistory,
+)
+
 from django.db.models import Avg, Count, Sum, Q
 from django.core.cache import cache
-
+from django.utils import timezone
+from datetime import timedelta
 
 def get_all_categories():
     return Category.objects.all().order_by("name")
@@ -13,7 +25,10 @@ def get_category_by_id(category_id):
     return Category.objects.get(id=category_id)
 
 def get_available_foods(vendor=None):
-    qs = Food.objects.filter(available=True).select_related("vendor", "category").order_by("id")
+    qs = Food.objects.filter(available=True
+        ).select_related("vendor__suscription__plan", "category"
+        ).order_by("-vendor__subscription__plan__priority_listing", "name") # premium vendors
+    
     if vendor:
         qs = qs.filter(vendor=vendor)
     return qs
@@ -98,6 +113,9 @@ def get_vendor_by_slug(slug):
 def get_vendor_by_id(vendor_id):
     return Vendor.objects.get(id=vendor_id)
 
+def get_vendor_by_id_for_email(vendor_id):
+    return Vendor.objects.select_related("user").get(id=vendor_id)
+
 def get_pending_vendors():
     return Vendor.objects.filter(is_approved=False).order_by("id")
 
@@ -178,13 +196,75 @@ def get_vendor_dashboard_stats(vendor):
     cache.set(cache_key, result, timeout=300)
     return result
 
+def get_all_plans():
+    return Plan.objects.filter(is_active=True)
 
+def get_plan_by_id(plan_id):
+    return Plan.objects.filter(id=plan_id, is_active=True)
 
-# def get_food_by_id(food_id):
-#     return Food.objects.get(id=food_id)
+def get_subscription_by_reference(reference, vendor):
+    return Subscription.objects.select_related("vendor", "plan").get(
+        payment_reference=reference,
+        vendor=vendor
+    )
 
-# def get_foods_by_category(category_slug):
-#     return Food.objects.filter(
-#         category__slug=category_slug,
-#         available=True
-#     ).select_related("category")
+def get_vendor_subscription(vendor):
+    try:
+        return vendor.subscription
+    except Subscription.DoesNotExist:
+        return None
+
+def get_vendor_subscription_by_id_for_email(vendor_id):
+    return Vendor.objects.select_related(
+        "user", "subscription__plan"
+        ).get(id=vendor_id)
+
+def get_vendor_subscription_history(vendor):
+    return SubscriptionHistory.objects.filter(
+        vendor=vendor
+    ).select_related("plan").order_by("-created_at")
+
+def get_vendor_analytics(vendor):
+    now = timezone.now()
+    this_month = now.replace(day=1, hour=0, minute=0, second=0)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+
+    orders_this_month = Order.objects.filter(
+        items__food__vendor=vendor,
+        created_at__gte=this_month,
+        status="DELIVERED"
+    ).distinct()
+
+    orders_last_month = Order.objects.filter(
+        items__food__vendor=vendor,
+        created_at__gte=last_month,
+        created_at__lt=this_month,
+        status="DELIVERED"
+    ).distinct()
+
+    revenue_this_month = orders_this_month.aggregate(
+        total=Sum("total")
+    )["total"] or 0
+
+    revenue_last_month = orders_last_month.aggregate(
+        total=Sum("total")
+    )["total"] or 0
+
+    top_foods = OrderItem.objects.filter(
+        food__vendor=vendor,
+        order__status="DELIVERED"
+    ).values(
+        "food__name"
+    ).annotate(
+        total_sold=Sum("quantity")
+    ).order_by("-total_sold")[:5]
+
+    revenues = {
+        "orders_this_month": orders_this_month.count(),
+        "orders_last_month": orders_last_month.count(),
+        "revenue_this_month": revenue_this_month,
+        "revenue_last_month": revenue_last_month,
+        "top_foods": list(top_foods),
+    }
+
+    return revenues

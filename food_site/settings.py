@@ -15,6 +15,7 @@ import os
 import dj_database_url
 from decouple import config
 from datetime import timedelta
+from celery.schedules import crontab
 import ssl
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -84,7 +85,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'Food Ordering System API',
-    'DESCRIPTION': 'API documentation for the Food Ordering System',
+    'DESCRIPTION': 'A scalable multivendor food ordering system',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
 }
@@ -160,6 +161,20 @@ else:
 
 
 BREVO_API_KEY = config("BREVO_API_KEY")
+
+BREVO_SENDER_EMAIL = config("BREVO_SENDER_EMAIL")
+BREVO_SENDER_NAME = config("BREVO_SENDER_NAME")
+
+CELERY_BEAT_SCHEDULE = {
+    "check_expired_subscriptions": {
+        "task": "food.tasks.check_expired_subscriptions",
+        "schedule": crontab(hour=0, minute=0), # runs every midnight
+    },
+    "notify-expiring-subscriptions": {
+        "task": "food.tasks.notify_expiring_subscriptions",
+        "schedule": crontab(hour=9, minute=0),  # runs every day at 9am
+    },
+}
 
 
 LOGGING = {
