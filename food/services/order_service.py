@@ -1,6 +1,7 @@
 from django.db import transaction
 from django.utils import timezone
 from food.models import Food, Order, OrderStatusHistory
+from food.services.subscription_service import check_vendor_order_limit
 from food.tasks import send_order_status_email, send_payment_email
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
@@ -68,12 +69,44 @@ def finalize_order(order, user=None):
     if not order.items.exists():
         raise ValidationError("Cannot checkout an empty cart")
     
-    for item in order.items.select_related("food"):
+    items = list(order.items.select_related("food__vendor__subscription__plan"))
+    for item in items:
         food = Food.objects.select_for_update().get(id=item.food_id)
+        
+        vendor = food.vendor
+        if not vendor.subscription.is_valid():
+            raise ValidationError(
+                f"{vendor.business_name} is currently unavailable. "
+                f"Please remove their items from your cart"
+            )
+        
         if food.stock < item.quantity:
             raise ValidationError(f"{food.name} is out of stock")
+        
+        try:
+            check_vendor_order_limit(food.vendor)
+        except ValidationError:
+            raise ValidationError(
+                f"{food.vendor.business_name} cannot receive more orders this month."
+            )
+
         food.stock -= item.quantity
         food.save(update_fields=["stock", "updated_at"])
+    
+    vendors = set(item.food.vendor for item in items)
+
+    has_delivery_fee = any(
+        vendor.subscription.plan.delivery_fee
+        for vendor in vendors
+    )
+    
+    if has_delivery_fee:
+        order.delivery_fee = 0
+    else:
+        order.delivery_fee = 500.00 # default delivery fee ₦500
+    
+    order.total = sum(item.subtotal for item in order.items.all()) + order.delivery_fee
+    order.save(update_fields=["total", "delivery_fee", "updated_at"])
         
     return update_order_status(order, "CONFIRMED", changed_by=user)
 

@@ -86,3 +86,5 @@ def update_order_total(order):
     total = order.items.aggregate(total=Sum(F("quantity") * F("price_at_purchase")))["total"] or 0
     order.total = total
     order.save(update_fields=["total", "updated_at"])
+
+
