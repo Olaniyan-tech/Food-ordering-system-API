@@ -1,6 +1,7 @@
 from food.models import Vendor, Food, OrderItem
 from django.db import transaction, IntegrityError
 from django.core.exceptions import ValidationError
+from food.tasks import send_vendor_status_email
 import logging
 
 logger = logging.getLogger(__name__)
@@ -88,7 +89,15 @@ def approve_vendor(vendor, approved_by=None):
     vendor.is_active = True
     result = _save_with_updated_at(vendor, update_fields=["is_approved", "is_active"])
     if approved_by:
-        logger.info(f"Vendor '{vendor.business_name}' approved by user '{approved_by.username}'")
+        logger.info(
+            f"Vendor '{vendor.business_name}' approved by user '{approved_by.username}'"
+        )
+    # send email after transaction commits
+    # if transaction fails — email never sent ✅
+
+    transaction.on_commit(
+        lambda: send_vendor_status_email.delay(vendor.id, "APPROVED")
+    )
     return result
 
 
@@ -99,7 +108,13 @@ def reject_vendor(vendor, rejected_by=None):
     vendor.is_active = False
     result = _save_with_updated_at(vendor, update_fields=["is_active"])
     if rejected_by:
-        logger.info(f"Vendor '{vendor.business_name}' rejected by user '{rejected_by.username}'")
+        logger.info(
+            f"Vendor '{vendor.business_name}' rejected by user '{rejected_by.username}'"
+        )
+    
+    transaction.on_commit(
+        lambda: send_vendor_status_email.delay(vendor.id, "REJECTED")
+    )
     return result
 
 
@@ -110,7 +125,13 @@ def deactivate_vendor(vendor, deactivated_by=None):
     vendor.is_active = False
     result = _save_with_updated_at(vendor, update_fields=["is_active"])
     if deactivated_by:
-        logger.info(f"Vendor '{vendor.business_name}' deactivated by user '{deactivated_by.username}'")
+        logger.info(
+            f"Vendor '{vendor.business_name}' deactivated by user '{deactivated_by.username}'"
+        )
+    
+    transaction.on_commit(
+        lambda: send_vendor_status_email.delay(vendor.id, "DEACTIVATED")
+    )
     return result
 
 
@@ -123,9 +144,13 @@ def activate_vendor(vendor, activated_by=None):
     vendor.is_active = True
     result = _save_with_updated_at(vendor, update_fields=["is_active"])
     if activated_by:
-        logger.info(f"Vendor '{vendor.business_name}' activated by user '{activated_by.username}'")
+        logger.info(
+            f"Vendor '{vendor.business_name}' activated by user '{activated_by.username}'"
+        )
+    transaction.on_commit(
+        lambda: send_vendor_status_email.delay(vendor.id, "ACTIVATED")
+    )
     return result
-
 
 @transaction.atomic
 def create_vendor_food(vendor, validated_data):

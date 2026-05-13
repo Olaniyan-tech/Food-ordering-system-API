@@ -33,6 +33,17 @@ def create_review(order, user, validated_data):
     if Review.objects.filter(order_id=order.id).exists():
         raise ValidationError("You have already reviewed this order")
     
+    # Check if vendor can accept reviews
+    vendors = set(item.food.vendor for item in order.items.select_related(
+        "food__vendor__subscription__plan")
+    )
+    
+    for vendor in vendors:
+        if not vendor.subscription.plan.can_receive_reviews:
+            raise ValidationError(
+                f"{vendor.business_name} does not accept reviews on their current plan"
+            )
+        
     data = dict(validated_data)
     data.pop("vendor", None)
     data.pop("order", None)
