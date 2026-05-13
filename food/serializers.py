@@ -1,5 +1,15 @@
 from rest_framework import serializers
-from food.models import Food, Order, OrderItem, Review, Category, Vendor
+from food.models import(
+    Food, 
+    Order, 
+    OrderItem, 
+    Review, 
+    Category, 
+    Vendor,
+    Plan, 
+    Subscription,
+    SubscriptionHistory,
+)
 from users.validators import validate_phone_format
 from drf_spectacular.utils import extend_schema_field
 
@@ -288,4 +298,48 @@ class ReviewSerializer(serializers.ModelSerializer):
         return data
 
 
-   
+class PlanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Plan
+        fields = (
+            "id",
+            "name",
+            "price",
+            "max_food_listings",
+            "max_orders_per_month",
+            "can_receive_reviews",
+            "priority_listing",
+            "analytics_access",
+            "description"
+        )
+
+
+class SubscriptionSerializer(serializers.ModelSerializer):
+    plan = PlanSerializer(read_only=True)
+    is_valid = serializers.SerializerMethodField()
+    business_name = serializers.CharField(source="vendor.business_name", read_only=True)
+
+    class Meta:
+        model = Subscription
+        fields = (
+            "id",
+            "business_name",
+            "plan",
+            "status",
+            "start_date",
+            "end_date",
+            "is_valid",
+            "created_at"
+        )
+
+    def get_is_valid(self, obj):
+        return obj.is_valid
+
+
+class SubscriptionHistorySerializer(serializers.ModelSerializer):
+    plan_name = serializers.SerializerMethodField(source="plan.name", read_only=True)
+
+    class Meta:
+        model = SubscriptionHistory
+        fields = ["id", "plan_name", "event", "payment_reference", "created_at"]
+        

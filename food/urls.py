@@ -10,14 +10,17 @@ from .views import(
     AllOrdersView, 
     OrderStatusUpdateView,
     OrderDetailView,
-    InitializePaymentView,
-    VerifyPaymentView,
+    FoodDetailView,
+    
+    InitializeOrderPaymentView,
+    VerifyOrderPaymentView,
     PayStackWebhookView,
+    
     CreateReviewView,
     UpdateReviewView,
     OrderReviewDetailView,
     FoodReviewsView,
-    FoodDetailView,
+    
     VendorListView,
     VendorDetailView,
     VendorFoodListView,
@@ -32,21 +35,34 @@ from .views import(
     VendorFoodToggleAvailabilityView,
     VendorOrderListView,
     VendorOrderDetailView,
+
     AdminVendorListView,
     AdminVendorDetailView,
     AdminApproveVendorView,
     AdminVendorRejectView,
     AdminVendorActivateView,
     AdminVendorDeactivateView,
+
     CategoryListView,
     CategoryFoodsView,
     AdminCategoryCreateView,
-    AdminCategoryDetailView
+    AdminCategoryDetailView,
 
+    PlanListView,
+    VendorSubscriptionVIew,
+    SubscribeView,
+    CancelSubscriptionView,
+    VendorSubscriptionHistoryView,
+    VendorAnalyticsView,
+
+    InitializeVendorSubscriptionPaymentView,
+    VerifyVendorSubscriptionPaymentView
+    
 )
 
 app_name = "food"
 urlpatterns = [
+    # Users
     path("menu/", AllFoodView.as_view(), name="menu"),
     path("my-orders/", AllOrdersView.as_view(), name="my-orders"),
     path("add_to_cart/", AddToCartView.as_view(), name="add"),
@@ -55,15 +71,20 @@ urlpatterns = [
     path("order/details/update/", UpdateOrderDetailView.as_view(), name="order-details"),
     path("checkout/", CheckOutView.as_view(), name="checkout"),
     path("order/<int:order_id>/details/", OrderDetailView.as_view(), name="order-detail"),
-    path("order/<int:order_id>/status/", OrderStatusUpdateView.as_view(), name="order-status"),
-    path("order/<int:order_id>/pay/", InitializePaymentView.as_view(), name="initialize-payment"),
-    path("order/verify/<str:reference>/", VerifyPaymentView.as_view(), name="verify-payment"),
+    path("food/<int:food_id>/details/", FoodDetailView.as_view(), name="food-detail"),
+
+    # Payment
+    path("order/<int:order_id>/pay/", InitializeOrderPaymentView.as_view(), name="initialize-payment"),
+    path("order/verify/<str:reference>/", VerifyOrderPaymentView.as_view(), name="verify-payment"),
     path("webhook/paystack/", PayStackWebhookView.as_view(), name="webhook-paystack"),
+
+    # Reviews
     path("order/<int:order_id>/review/", CreateReviewView.as_view(), name="create-review"),
     path("order/<int:order_id>/review/update/", UpdateReviewView.as_view(), name="update-review"),
     path("order/<int:order_id>/review/details/", OrderReviewDetailView.as_view(), name="order-review-detail"),
     path("foods/<int:food_id>/reviews/", FoodReviewsView.as_view(), name="food-reviews"),
-    path("food/<int:food_id>/details/", FoodDetailView.as_view(), name="food-detail"),
+
+    # Vendor
     path("vendors/", VendorListView.as_view(), name="vendors"),
     path("vendor/<slug:slug>/details/", VendorDetailView.as_view(), name="vendor-detail"),
     path("vendor/<slug:slug>/foods/", VendorFoodListView.as_view(), name="vendor-foods"),
@@ -84,9 +105,24 @@ urlpatterns = [
     path("admin/vendor/<int:vendor_id>/reject/", AdminVendorRejectView.as_view(), name="admin-vendor-reject"),
     path("admin/vendor/<int:vendor_id>/activate/", AdminVendorActivateView.as_view(), name="admin-vendor-activate"),
     path("admin/vendor/<int:vendor_id>/deactivate/", AdminVendorDeactivateView.as_view(), name="admin-vendor-deactivate"),
+
+    # Foods Category (Admin)
     path("categories/", CategoryListView.as_view(), name="categories"),
     path("category/<slug:slug>/foods/", CategoryFoodsView.as_view(), name="category-foods"),
     path("admin/category/create/", AdminCategoryCreateView.as_view(), name="admin-category-create"),
     path("admin/category/<int:category_id>/details/", AdminCategoryDetailView.as_view(), name="admin-category-detail"),
+
+    # Admin and Vendor
+    path("order/<int:order_id>/status/", OrderStatusUpdateView.as_view(), name="order-status"),
+
+    # Plans and Subscriptions
+    path("plans/", PlanListView.as_view(), name="plan-list"),
+    path("vendor/subscription/", VendorSubscriptionVIew.as_view(), name="vendor-subscription"),
+    path("vendor/subscription/subscribe/", SubscribeView.as_view(), name="subscribe"),
+    path("vendor/subscription/cancel", CancelSubscriptionView.as_view(), name="cancel-subscription"),
+    path("vendor/subscription/history/", VendorSubscriptionHistoryView.as_view(), name="subscription-history"),
+    path("vendor/analytics/", VendorAnalyticsView.as_view(), name="vendor-analytics"),
+    path("vendor/subscription/pay/", InitializeVendorSubscriptionPaymentView.as_view(), name="subscription-pay"),
+    path("vendor/subscription/verify/<str:reference>/", VerifyVendorSubscriptionPaymentView.as_view(), name="subscription-verify"),
 
 ]

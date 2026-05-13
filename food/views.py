@@ -10,7 +10,8 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import status
-from food.models import Category, Food, Order, Vendor
+from food.models import Category, Food, Order, Vendor, Plan, Subscription
+from food.tasks import send_vendor_subscription_payment_email
 from .serializers import (
     CategorySerializer,
     FoodSerializer,
@@ -23,7 +24,10 @@ from .serializers import (
     VendorProfileSerializer,
     VendorProfileUpdateSerializer,
     VendorDashboardSerializer,
-    AdminVendorListSerializer
+    AdminVendorListSerializer,
+    PlanSerializer,
+    SubscriptionSerializer,
+    SubscriptionHistorySerializer
 )
 from food.services.cart_service import add_item_to_cart, remove_item_from_cart
 from food.services.order_service import ( 
@@ -33,7 +37,12 @@ from food.services.order_service import (
     finalize_order,
     update_payment_status
 )    
-from food.services.payment_service import initialize_payment, verify_payment
+from food.services.payment_service import (
+    initialize_order_payment, 
+    verify_order_payment,
+    initialize_vendor_subscription_payment,
+    verify_vendor_subscription_payment
+)
 from food.services.review_service import (
     create_review, 
     _food_reviews_stats_cache_key,
@@ -50,6 +59,12 @@ from food.services.vendor_services import (
     update_vendor_food,
     delete_vendor_food,
     toggle_vendor_food_availability,
+)
+from food.services.subscription_service import (
+    subscribe_vendor,
+    cancel_subscription,
+    check_subscription_status,
+    add_food_listing
 )
 from food.selectors import (
     get_all_categories,
@@ -75,7 +90,12 @@ from food.selectors import (
     get_vendor_reviews,
     get_vendor_reviews_stats,
     get_vendor_dashboard_stats,
-    get_food_by_id
+    get_food_by_id,
+    get_all_plans,
+    get_plan_by_id,
+    get_subscription_by_reference,
+    get_vendor_subscription_history,
+    get_vendor_analytics,
 )
 from food.filters import FoodFilter, OrderFilter
 from rest_framework.pagination import PageNumberPagination
@@ -84,6 +104,7 @@ from food.permissions import (
     IsStaff, 
     IsApprovedVendor,
     IsVendorOwner,
+    IsAnalyticsAllowed,
 )
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.core.exceptions import ValidationError
@@ -363,7 +384,7 @@ class OrderStatusUpdateView(APIView):
         )
     
 
-class InitializePaymentView(APIView):
+class InitializeOrderPaymentView(APIView):
 
     @extend_schema(responses={200: None})
     @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
@@ -374,7 +395,7 @@ class InitializePaymentView(APIView):
             return Response({"error": "Order not found!"}, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            authorization_url, reference = initialize_payment(order)
+            authorization_url, reference = initialize_order_payment(order)
         except ValidationError as e:
             return Response({"error": e.messages[0] if e.messages else str(e)}, 
                 status=status.HTTP_409_CONFLICT
@@ -386,7 +407,7 @@ class InitializePaymentView(APIView):
         }, status=status.HTTP_200_OK)
                 
 
-class VerifyPaymentView(APIView):
+class VerifyOrderPaymentView(APIView):
     
     @extend_schema(responses={200: None})
     @method_decorator(ratelimit(key="user", rate="10/m", method="GET", block=True))
@@ -397,7 +418,7 @@ class VerifyPaymentView(APIView):
             return Response({"error": "Order not found!"}, status=status.HTTP_404_NOT_FOUND)
         
         try:
-            payment_data = verify_payment(reference)
+            payment_data = verify_order_payment(reference)
         except ValidationError as e:
             return Response({"error": e.messages[0] if e.messages else str(e)}, 
                 status=status.HTTP_400_BAD_REQUEST
@@ -956,6 +977,7 @@ class VendorFoodToggleAvailabilityView(APIView):
     permission_classes = [IsApprovedVendor, IsVendorOwner]
 
     @method_decorator(ratelimit(key="user", rate="20/m", method="PATCH", block=True))
+    @extend_schema(responses={200: None})
     def patch(self, request, food_id):
         try:
             food = get_food_by_id(food_id)
@@ -1238,6 +1260,8 @@ class CategoryFoodsView(generics.ListAPIView):
 class AdminCategoryCreateView(APIView):
     permission_classes = [IsStaff]
 
+    @method_decorator(ratelimit(key="user", rate="20/m", method="POST", block=True))
+    @extend_schema(request=CategorySerializer, responses={201: CategorySerializer})
     def post(self, request):
         serializer = CategorySerializer(data=request.data)
         if not serializer.is_valid():
@@ -1253,6 +1277,8 @@ class AdminCategoryCreateView(APIView):
 class AdminCategoryDetailView(APIView):
     permission_classes = [IsStaff]
 
+    @method_decorator(ratelimit(key="user", rate="20/m", method="GET", block=True))
+    @extend_schema(responses={200: CategorySerializer})
     def get(self, request, category_id):
         try:
             category = get_category_by_id(category_id)
@@ -1260,6 +1286,8 @@ class AdminCategoryDetailView(APIView):
             raise NotFound("Category not found")
         return Response(CategorySerializer(category).data)
     
+    @method_decorator(ratelimit(key="user", rate="20/m", method="PATCH", block=True))
+    @extend_schema(request=CategorySerializer, responses={200: CategorySerializer})
     def patch(self, request, category_id):
         try:
             category = get_category_by_id(category_id)
@@ -1273,6 +1301,8 @@ class AdminCategoryDetailView(APIView):
         category = serializer.save()
         return Response(CategorySerializer(category).data)
 
+    @method_decorator(ratelimit(key="user", rate="20/m", method="DELETE", block=True))
+    @extend_schema(responses={204: None})
     def delete(self, request, category_id):
         try:
             category = get_category_by_id(category_id)
@@ -1282,4 +1312,271 @@ class AdminCategoryDetailView(APIView):
         return Response(
             {"message": "Category deleted successfully"},
             status=204
+        )
+
+
+class PlanListView(generics.ListAPIView):
+    serializer_class = PlanSerializer
+    permission_classes = [AllowAny]
+
+    @method_decorator(ratelimit(key="ip", rate="60/m", method="GET", block=True))
+    @extend_schema(responses={200: PlanSerializer(many=True)})
+    def get(self, request, *args, **kwargs):
+            return super().get(request, *args, *kwargs)
+
+    def get_queryset(self):
+        return get_all_plans()
+    
+
+class VendorSubscriptionVIew(APIView):
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="30/m", method="GET", block=True))
+    @extend_schema(responses={200: SubscriptionSerializer})
+    def get(self, request, vendor):        
+        vendor = request.user.vendor
+        subscription = check_subscription_status(vendor)
+        
+        return Response(
+            SubscriptionSerializer(subscription).data,
+            status=status.HTTP_200_OK
+        )
+        
+
+class SubscribeView(APIView):
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
+    @extend_schema(request=SubscriptionSerializer, responses={200: SubscriptionSerializer})
+    def post(self, request):
+        plan_id = request.data.get("plan_id")
+        payment_reference = request.data.get("payment_reference")
+
+        if not plan_id:
+            return Response({
+                "error": "plan_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+        if not payment_reference:
+            return Response({
+                "error": "payment_reference is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            subscription = subscribe_vendor(
+                vendor=request.user.vendor,
+                plan_id=plan_id,
+                payment_reference=payment_reference
+            )
+        except ValidationError as e:
+            return Response({
+                "error": e.messages[0] if e.messages[0] else str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(
+            f"Vendor {request.user.vendor.business_name} " 
+            f"subscribed to {subscription.plan.name}"
+        )
+        
+        return Response({
+            "message": "You subscribed successfully",
+            "data": SubscriptionSerializer(subscription).data},
+            status=status.HTTP_200_OK
+        )
+            
+
+class CancelSubscriptionView(APIView):
+    permission_classes = [IsVendorOwner]
+
+    @method_decorator(ratelimit(key="user", rate="5/m", method="DELETE", block=True))
+    @extend_schema(responses={200: None})
+    def delete(self, request):
+        try:
+            cancel_subscription(request.user.vendor)
+        except ValidationError as e:
+            return Response({
+                "error": e.messages[0] if e.messages[0] else str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        logger.info(f"Vendor {request.user.vendor.business_name} cancelled subscription")
+
+        return Response({
+            "message": "Subsription cancelled. You are now on the free plan."},
+            status=status.HTTP_200_OK
+        )
+
+
+class VendorAddFoodView(APIView):
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="30/m", method="POST", block=True))
+    @extend_schema(request=FoodSerializer, responses={201: FoodSerializer})
+    def post(self, request):
+        serializer = FoodSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            food = add_food_listing(
+                vendor=request.user.vendor,
+                food_data=serializer.validated_data
+            )
+        except ValidationError as e:
+            return Response({
+                "error": e.messages[0] if e.messages else str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return Response({
+            "message": "Food added successfully",
+            "data": FoodSerializer(food).data}, 
+            status=status.HTTP_201_CREATED
+        )
+
+
+class VendorSubscriptionHistoryView(generics.ListAPIView):
+    serializer_class = SubscriptionHistorySerializer
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="30/m", method="GET", block=True))
+    @extend_schema(responses={200: SubscriptionHistorySerializer(many=True)})
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        return get_vendor_subscription_history(self.request.user.vendor)
+
+
+class VendorAnalyticsView(APIView):
+    permission_classes = [IsApprovedVendor, IsAnalyticsAllowed]
+
+    @method_decorator(ratelimit(key="user", rate="30/m", method="GET", block=True))
+    @extend_schema(responses={200: None})
+    def get(self, request):
+        vendor = request.user.vendor
+        analytics = get_vendor_analytics(vendor)
+        return Response(analytics, status=status.HTTP_200_OK)
+
+
+class InitializeVendorSubscriptionPaymentView(APIView):
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="5/m", method="POST", block=True))
+    def post(self, request):
+        plan_id = request.data.get("plan_id")
+        if not plan_id:
+            return Response(
+                {"error": "plan_id is required"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            plan = get_plan_by_id(plan_id)
+        except Plan.DoesNotExist:
+            return Response(
+                {"error": "Plan not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        try:
+            authorization_url, reference = initialize_vendor_subscription_payment(
+                vendor=request.user.vendor,
+                plan=plan
+            )
+        except ValidationError as e:
+            return Response(
+                {"error": e.messages[0] if e.messages else str(e)},
+                status=status.HTTP_409_CONFLICT
+            )
+        
+        logger.info(
+            f"Vendor {request.user.vendor.restaurant_name} "
+            f"initialized payment for {plan.name} plan"
+        )
+
+        return Response({
+            "authorization_url": authorization_url,
+            "reference": reference,
+            "plan": plan.name,
+            "amount": plan.price,
+        }, status=status.HTTP_200_OK)
+
+
+class VerifyVendorSubscriptionPaymentView(APIView):
+    permission_classes = [IsApprovedVendor]
+
+    @method_decorator(ratelimit(key="user", rate="10/m", method="GET", block=True))
+    def get(self, request, reference):
+        vendor = request.user.vendor
+
+        try:
+            subscription = get_subscription_by_reference(reference, vendor)
+            return Response(
+                SubscriptionSerializer(subscription).data,
+                status=status.HTTP_200_OK
+            )
+        except Subscription.DoesNotExist:
+            pass
+
+        try:
+            payment_data = verify_vendor_subscription_payment(reference)
+        except ValidationError as e:
+            return Response({"error": e.messages[0] if e.messages else str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        if payment_data["status"] != PAYSTACK_SUCCESS_STATUS:
+            logger.warning(
+                f"Payment failed for vendor {vendor.id} ref={reference}"
+            )
+            return Response(
+                {"error": "Payment was not successful"},
+                status=status.HTTP_402_PAYMENT_REQUIRED
+            )
+        
+        metadata = payment_data.get("metadata", {})
+        plan_id = metadata.get("plan_id")
+
+        if not plan_id:
+            return Response(
+                {"error": "Plan ID missing in payment metadata"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            plan = get_plan_by_id(plan_id)
+        except Plan.DoesNotExist:
+            return Response(
+                {"error": "Plan not found"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+         # activate subscription
+        try:
+            subscription = subscribe_vendor(
+                vendor=request.user.vendor,
+                plan_id=plan_id,
+                payment_reference=reference
+            )
+        except ValidationError as e:
+            return Response(
+                {"error": e.messages[0] if e.messages else str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        send_vendor_subscription_payment_email.delay(vendor.id, plan.name, reference)
+
+        logger.info(
+            f"Vendor {request.user.vendor.business_name} "
+            f"activated {plan.name} subscription"
+        )
+
+        return Response(
+            SubscriptionSerializer(subscription).data,
+            status=status.HTTP_200_OK
         )
