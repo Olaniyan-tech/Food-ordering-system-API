@@ -24,3 +24,17 @@ class IsVendorOwner(BasePermission):
             return False
         return obj.vendor == request.user.vendor
 
+class IsAnalyticsAllowed(BasePermission):
+    # Only vendors whose plan includes analytics
+
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        try:
+            vendor = request.user.vendor
+            return (
+                vendor.subscription.is_valid() and
+                vendor.subscription.plan.analytics_access
+            )
+        except:
+            return False
