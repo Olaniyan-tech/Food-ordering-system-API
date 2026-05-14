@@ -118,7 +118,6 @@ urlpatterns = [
     # Plans and Subscriptions
     path("plans/", PlanListView.as_view(), name="plan-list"),
     path("vendor/subscription/", VendorSubscriptionVIew.as_view(), name="vendor-subscription"),
-    path("vendor/subscription/subscribe/", SubscribeView.as_view(), name="subscribe"),
     path("vendor/subscription/cancel", CancelSubscriptionView.as_view(), name="cancel-subscription"),
     path("vendor/subscription/history/", VendorSubscriptionHistoryView.as_view(), name="subscription-history"),
     path("vendor/analytics/", VendorAnalyticsView.as_view(), name="vendor-analytics"),
