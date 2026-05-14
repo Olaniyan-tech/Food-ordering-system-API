@@ -50,7 +50,6 @@ from .views import(
 
     PlanListView,
     VendorSubscriptionVIew,
-    SubscribeView,
     CancelSubscriptionView,
     VendorSubscriptionHistoryView,
     VendorAnalyticsView,
