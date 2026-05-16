@@ -3,6 +3,7 @@ import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 from django.contrib.auth.models import User
 from django.conf import settings
+from food.constants import BREVO_SENDER
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +19,7 @@ def send_welcome_email(self, user_id):
     try:
         configuration = sib_api_v3_sdk.Configuration()
         configuration.api_key["api-key"] = settings.BREVO_API_KEY
+        configuration.host = settings.BREVO_CONFIG_URL
 
         api_instance = sib_api_v3_sdk.TransactionalEmailsApi(
             sib_api_v3_sdk.ApiClient(configuration)
@@ -25,7 +27,7 @@ def send_welcome_email(self, user_id):
     
         send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
             to=[{"email": user.email, "name": user.username}],
-            sender={"email": "alliolaniyan1@gmail.com", "name": "BiteBoard"},
+            sender=BREVO_SENDER,
             subject="Welcome to BiteBoard 🍔",
             html_content=f"""
                 <h2>Hi {user.username},</h2>
